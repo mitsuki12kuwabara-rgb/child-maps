@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>子どもマップ一覧</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hiragino Sans', 'Meiryo', 'Yu Gothic', sans-serif;
+    background: #f0f4f8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  h1 {
+    font-size: 22px;
+    color: #1a3a5c;
+    margin-bottom: 8px;
+    letter-spacing: 0.03em;
+  }
+  p.sub {
+    font-size: 13px;
+    color: #6b7f96;
+    margin-bottom: 36px;
+  }
+  .cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    max-width: 680px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+    padding: 28px 32px;
+    text-decoration: none;
+    color: inherit;
+    width: 280px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+  }
+  .card-icon { font-size: 32px; }
+  .card-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a3a5c;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: #6b7f96;
+    line-height: 1.6;
+  }
+  .card-arrow {
+    font-size: 13px;
+    color: #4a90d9;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+  <h1>子どもマップ一覧</h1>
+  <p class="sub">地域ごとの子育て・教育施設マップです</p>
+  <div class="cards">
+    <a href="setagaya.html" class="card">
+      <span class="card-icon">🗺️</span>
+      <span class="card-title">世田谷区・品川区・杉並区</span>
+      <span class="card-desc">子どもマップ（保育・学童・習い事等）</span>
+      <span class="card-arrow">マップを開く →</span>
+    </a>
+    <a href="nanto.html" class="card">
+      <span class="card-icon">🗺️</span>
+      <span class="card-title">南砺市</span>
+      <span class="card-desc">子育て・教育マップ</span>
+      <span class="card-arrow">マップを開く →</span>
+    </a>
+  </div>
+</body>
+</html>

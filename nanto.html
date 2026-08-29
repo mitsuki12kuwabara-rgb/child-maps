@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>南砺市 子育て・教育マップ</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Hiragino Sans', 'Meiryo', 'Yu Gothic', sans-serif; }
+    #map { width: 100vw; height: 100vh; }
+
+    #loading {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.92);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; gap: 16px;
+    }
+    #loading h2 { font-size: 18px; color: #333; }
+    #progress-bar-wrap { width: 320px; background: #e0e0e0; border-radius: 8px; height: 10px; overflow: hidden; }
+    #progress-bar { height: 100%; background: #4a90d9; border-radius: 8px; width: 0%; transition: width 0.2s; }
+    #progress-text { font-size: 13px; color: #666; }
+
+    #controls {
+      position: fixed; top: 12px; right: 12px; z-index: 1000;
+      background: white; border-radius: 10px; padding: 14px 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18); min-width: 200px;
+    }
+    #controls h3 { font-size: 14px; color: #333; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+    .layer-toggle { display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer; font-size: 13px; color: #444; }
+    .layer-toggle input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+
+    .legend { margin-top: 12px; border-top: 1px solid #eee; padding-top: 10px; }
+    .legend h4 { font-size: 12px; color: #666; margin-bottom: 6px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #444; margin: 4px 0; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 2px rgba(0,0,0,0.3); flex-shrink: 0; }
+
+    #stats {
+      position: fixed; bottom: 12px; left: 12px; z-index: 1000;
+      background: white; border-radius: 10px; padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18); font-size: 12px; color: #555;
+      line-height: 1.8;
+    }
+    #stats strong { color: #333; }
+
+    .leaflet-popup-content b { font-size: 14px; display: block; margin-bottom: 4px; }
+    .leaflet-popup-content { font-size: 13px; line-height: 1.8; min-width: 180px; }
+    .popup-capacity { font-size: 18px; font-weight: bold; color: #4a90d9; }
+    .popup-type-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: bold; margin-bottom: 6px;
+    }
+
+    #src-note {
+      position: fixed; bottom: 12px; right: 12px; z-index: 1000;
+      background: white; border-radius: 10px; padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18); font-size: 11px; color: #888;
+      line-height: 1.6; max-width: 260px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <h2>施設の位置情報を取得中...</h2>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="progress-text">0 / 0</div>
+  <div style="font-size:12px;color:#999;">国土地理院APIでジオコーディング中（初回のみ時間がかかります）</div>
+</div>
+
+<div id="map"></div>
+
+<div id="controls">
+  <h3>🗺 レイヤー切替</h3>
+  <label class="layer-toggle"><input type="checkbox" id="chk-pins" checked> 施設ピン</label>
+  <label class="layer-toggle"><input type="checkbox" id="chk-heat"> ヒートマップ</label>
+
+  <div class="legend">
+    <h4>保育・幼児教育</h4>
+    <div class="legend-item"><div class="legend-dot" style="background:#3388ff"></div>市立保育園</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#2da44e"></div>私立保育園</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f08030"></div>認定こども園（幼稚園機能含む）</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>小規模・地域型</div>
+  </div>
+
+  <div class="legend" style="margin-top:10px;">
+    <h4>習い事</h4>
+    <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>学習塾</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e91e63"></div>音楽教室</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#17a2b8"></div>スポーツ・スイミング</div>
+  </div>
+
+  <div class="legend" style="margin-top:10px;">
+    <h4>エリア</h4>
+    <div style="font-size:11px;color:#888;line-height:1.7;">
+      南砺市（富山県）全域
+    </div>
+  </div>
+</div>
+
+<div id="stats">
+  <strong>読み込み完了後に表示されます</strong>
+</div>
+
+<div id="src-note">
+  📋 出典: 南砺市公式HP・南砺市子育て支援ガイド「すこやか」、富山県私立幼稚園・認定こども園協会、各教室公式サイト（KUMON/ヤマハ/明光義塾 等）<br>
+  ※保育施設の定員は南砺市公式情報に基づく<br>
+  ※習い事施設の「定員」は在籍規模の目安（公式値ではありません）<br>
+  ※南砺市に独立した幼稚園は無く、幼稚園機能は認定こども園3園に統合されています<br>
+  ※地図: OpenStreetMap / Leaflet　※座標: 国土地理院API
+</div>
+
+<script>
+// ===== 南砺市 保育施設データ =====
+// 出典: 南砺市公式HP（https://www.city.nanto.toyama.jp/soshiki/kodomo/1/2/5074.html）
+//       南砺市子育て支援ガイド「すこやか」（https://sukoyaka.city.nanto.toyama.jp/nursey）
+const FACILITIES = [
+  // 市立保育園（公立 12施設）
+  {n:"城端さくら保育園",         a:"富山県南砺市理休240",           c:150, t:"市立",       area:"南砺"},
+  {n:"平みどり保育園",           a:"富山県南砺市下梨2580",          c:30,  t:"市立",       area:"南砺"},
+  {n:"上平保育園",               a:"富山県南砺市東赤尾10",          c:30,  t:"市立",       area:"南砺"},
+  {n:"利賀ささゆり保育園",       a:"富山県南砺市利賀村坂上33",     c:20,  t:"市立",       area:"南砺"},
+  {n:"山野保育園",               a:"富山県南砺市岩屋155",           c:55,  t:"市立",       area:"南砺"},
+  {n:"井口保育園",               a:"富山県南砺市井口116",           c:30,  t:"市立",       area:"南砺"},
+  {n:"福野ひまわり保育園",       a:"富山県南砺市百町101-1",        c:160, t:"市立",       area:"南砺"},
+  {n:"福野おひさま保育園",       a:"富山県南砺市柴田屋209",        c:200, t:"市立",       area:"南砺"},
+  {n:"福光どんぐり保育園",       a:"富山県南砺市福光日焼381-1",    c:150, t:"市立",       area:"南砺"},
+  {n:"福光南部あおぞら保育園",   a:"富山県南砺市小坂694-8",        c:30,  t:"市立",       area:"南砺"},
+  {n:"福光東部かがやき保育園",   a:"富山県南砺市荒木1305-1",       c:130, t:"市立",       area:"南砺"},
+  // 公立認定こども園（1施設）
+  {n:"認定こども園井波にじいろ保育園", a:"富山県南砺市山見2000-14",c:200, t:"認定こども園",area:"南砺"},
+  // 私立・認定こども園（3施設）
+  {n:"喜志麻保育園",             a:"富山県南砺市高宮663",          c:60,  t:"私立",       area:"南砺"},
+  {n:"認定こども園福野青葉幼稚園",a:"富山県南砺市二日町1331-42",  c:100, t:"認定こども園",area:"南砺"},
+  {n:"認定こども園福光青葉幼稚園",a:"富山県南砺市荒木1301-1",     c:55,  t:"認定こども園",area:"南砺"},
+  // 小規模・その他（2施設）
+  {n:"あすなろ保育園",           a:"富山県南砺市松原678-1",        c:19,  t:"小規模",     area:"南砺"},
+  {n:"寺子こどもえん",           a:"富山県南砺市本町2-32",         c:20,  t:"小規模",     area:"南砺"},
+
+  // ===== 習い事施設 =====
+  // 学習塾（塾・公文式）
+  {n:"個別指導塾スタンダード 福光教室", a:"富山県南砺市吉江中661",   c:30, t:"学習塾",   area:"南砺"},
+  {n:"ベストワン南砺城端校",           a:"富山県南砺市野田1132-2",    c:40, t:"学習塾",   area:"南砺"},
+  {n:"成和学舎(井波本校)",             a:"富山県南砺市山見2237",      c:60, t:"学習塾",   area:"南砺"},
+  {n:"成和学舎 山野教室",              a:"富山県南砺市飛騨屋20",      c:20, t:"学習塾",   area:"南砺"},
+  {n:"成和学舎 井波第2教室",           a:"富山県南砺市山見2203-6",    c:30, t:"学習塾",   area:"南砺"},
+  {n:"エミール教育センター",           a:"富山県南砺市柴田屋566-5",   c:40, t:"学習塾",   area:"南砺"},
+  {n:"公文式 福野教室",                a:"富山県南砺市柴田屋17-1",    c:40, t:"学習塾",   area:"南砺"},
+  {n:"公文式 井波今町教室",            a:"富山県南砺市井波1994",      c:40, t:"学習塾",   area:"南砺"},
+  {n:"公文式 井波小学校前教室",        a:"富山県南砺市山見1400",      c:40, t:"学習塾",   area:"南砺"},
+  {n:"公文式 福光中央教室",            a:"富山県南砺市福光7062",      c:40, t:"学習塾",   area:"南砺"},
+  // 音楽教室
+  {n:"ヤマハ音楽教室 福野アミューセンター", a:"富山県南砺市寺家新屋敷366", c:60, t:"音楽教室", area:"南砺"},
+  // スポーツ・スイミング
+  {n:"ア・ミュースポーツクラブ",       a:"富山県南砺市寺家新屋敷366", c:200, t:"スポーツ", area:"南砺"},
+  {n:"城端温水プール(ナントスイミングクラブ)", a:"富山県南砺市城端1938", c:150, t:"スポーツ", area:"南砺"},
+];
+
+const TYPE_COLORS = {
+  "市立":       "#3388ff",
+  "私立":       "#2da44e",
+  "認定こども園":"#f08030",
+  "小規模":     "#e67e22",
+  "学習塾":     "#9b59b6",
+  "音楽教室":   "#e91e63",
+  "スポーツ":   "#17a2b8",
+};
+const TYPE_BG = {
+  "市立":       "#e8f0fe",
+  "私立":       "#e6f4ea",
+  "認定こども園":"#fff3e0",
+  "小規模":     "#fef3e2",
+  "学習塾":     "#f3e8fb",
+  "音楽教室":   "#fde4ec",
+  "スポーツ":   "#e0f4f7",
+};
+// 保育カテゴリ（統計用）
+const HOIKU_TYPES = new Set(["市立","私立","認定こども園","小規模"]);
+
+const CACHE_KEY = 'nanto_geocache_v1';
+
+const map = L.map('map').setView([36.55, 136.88], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+let pinLayer = L.layerGroup();
+let heatLayer = null;
+
+function popupContent(f) {
+  const color = TYPE_COLORS[f.t] || '#888';
+  const bg = TYPE_BG[f.t] || '#eee';
+  const isHoiku = HOIKU_TYPES.has(f.t);
+  const capLabel = isHoiku ? '定員' : '生徒数目安';
+  const capSuffix = isHoiku ? '名' : '名程度';
+  return `
+    <b>${f.n}</b>
+    <span class="popup-type-badge" style="background:${bg};color:${color};">${f.t}</span><br>
+    <span style="color:#666;font-size:12px;">📍 ${f.a.replace('富山県南砺市','南砺市')}</span><br>
+    <span style="color:#666;font-size:12px;">エリア: 南砺市</span><br>
+    <div style="margin-top:6px;">${capLabel} <span class="popup-capacity">${f.c}</span> ${capSuffix}</div>
+  `;
+}
+
+async function geocodeAddress(addr) {
+  const url = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(addr)}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const [lng, lat] = data[0].geometry.coordinates;
+      return { lat, lng };
+    }
+  } catch(e) {}
+  return null;
+}
+
+// 定員に比例した半径（最小6、最大28）
+function capacityRadius(c) {
+  return Math.max(6, Math.min(28, 6 + (c / 260) * 22));
+}
+
+// 重複座標を黄金角ジッター
+const coordCount = {};
+function jitter(lat, lng) {
+  const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  const n = coordCount[key] || 0;
+  coordCount[key] = n + 1;
+  if (n === 0) return { lat, lng };
+  const angle = n * 137.508 * Math.PI / 180;
+  const r = 0.00015 * Math.ceil(n / 8);
+  return { lat: lat + r * Math.sin(angle), lng: lng + r * Math.cos(angle) };
+}
+
+async function init() {
+  const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+  const total = FACILITIES.length;
+  const heatData = [];
+  let plotted = 0;
+  let totalCapacity = 0;
+
+  document.getElementById('progress-text').textContent = `0 / ${total} 件処理中...`;
+
+  for (let i = 0; i < FACILITIES.length; i++) {
+    const f = FACILITIES[i];
+    let latlng = null;
+
+    if (f.lat && f.lng) {
+      latlng = { lat: f.lat, lng: f.lng };
+    } else {
+      latlng = cache[f.a] || null;
+      if (!latlng) {
+        latlng = await geocodeAddress(f.a);
+        if (latlng) cache[f.a] = latlng;
+        await new Promise(r => setTimeout(r, 80));
+      }
+    }
+
+    // 進捗更新
+    const pct = Math.round((i + 1) / total * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-text').textContent = `${i + 1} / ${total} 件処理中...`;
+
+    if (!latlng) continue;
+
+    const jittered = jitter(latlng.lat, latlng.lng);
+    const color = TYPE_COLORS[f.t] || '#888';
+    const radius = capacityRadius(f.c);
+
+    const marker = L.circleMarker([jittered.lat, jittered.lng], {
+      radius, color: 'white', weight: 1.5,
+      fillColor: color, fillOpacity: 0.85
+    }).bindPopup(popupContent(f));
+    marker.addTo(pinLayer);
+
+    heatData.push([latlng.lat, latlng.lng, f.c / 260]);
+    plotted++;
+    totalCapacity += f.c;
+  }
+
+  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  heatLayer = L.heatLayer(heatData, { radius: 30, blur: 20, maxZoom: 14 });
+
+  pinLayer.addTo(map);
+
+  document.getElementById('loading').style.display = 'none';
+
+  // 施設種別集計
+  const typeCounts = {};
+  let hoikuCount = 0, hoikuCap = 0, naraiCount = 0;
+  FACILITIES.forEach(f => {
+    typeCounts[f.t] = (typeCounts[f.t] || 0) + 1;
+    if (HOIKU_TYPES.has(f.t)) { hoikuCount++; hoikuCap += f.c; }
+    else { naraiCount++; }
+  });
+
+  document.getElementById('stats').innerHTML =
+    `<strong>🗺 南砺市 子育て・教育マップ</strong>` +
+    `<table style="width:100%;border-collapse:collapse;margin-top:4px;font-size:11px;">` +
+    `<tr style="color:#888"><td></td><td style="text-align:center">施設数</td><td style="text-align:center">定員/規模</td></tr>` +
+    `<tr><td style="color:#333;font-weight:bold">保育・幼児教育</td>` +
+    `<td style="text-align:center;font-weight:bold;color:#4a90d9">${hoikuCount}施設</td>` +
+    `<td style="text-align:center;font-weight:bold;color:#4a90d9">${hoikuCap.toLocaleString()}名</td></tr>` +
+    `<tr><td style="color:#333;font-weight:bold">習い事</td>` +
+    `<td style="text-align:center;font-weight:bold;color:#9b59b6">${naraiCount}施設</td>` +
+    `<td style="text-align:center;color:#aaa;font-size:10px">(目安)</td></tr>` +
+    `</table>` +
+    `<div style="font-size:10px;color:#aaa;margin-top:6px;border-top:1px solid #eee;padding-top:4px;">` +
+    `市立${(typeCounts['市立']||0)}園 / 認定こども園${(typeCounts['認定こども園']||0)}園 / 私立${(typeCounts['私立']||0)}園 / 小規模${(typeCounts['小規模']||0)}園<br>` +
+    `学習塾${(typeCounts['学習塾']||0)} / 音楽${(typeCounts['音楽教室']||0)} / スポーツ${(typeCounts['スポーツ']||0)}</div>`;
+
+  document.getElementById('chk-pins').addEventListener('change', function() {
+    if (this.checked) pinLayer.addTo(map); else map.removeLayer(pinLayer);
+  });
+  document.getElementById('chk-heat').addEventListener('change', function() {
+    if (this.checked) { if (heatLayer) heatLayer.addTo(map); }
+    else { if (heatLayer) map.removeLayer(heatLayer); }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
