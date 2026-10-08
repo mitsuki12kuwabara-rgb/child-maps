@@ -82,9 +82,9 @@
     .estat-age-detail .a5 { color: #2c5f9e; font-weight: bold; }
 
     #radius-panel {
-      position: fixed; top: 12px; left: 12px; z-index: 1000;
+      position: fixed; top: 12px; left: 12px; z-index: 1200;
       background: white; border-radius: 10px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
       width: 340px; max-height: calc(100vh - 24px);
       display: flex; flex-direction: column; overflow: hidden;
       font-size: 12px;
@@ -126,6 +126,156 @@
       pointer-events: none; opacity: 0; transition: opacity 0.3s;
     }
     #radius-hint.show { opacity: 1; }
+
+    /* === 検索・フィルタ === */
+    .search-section { margin-top: 12px; border-top: 1px solid #eee; padding-top: 10px; }
+    .search-section h4 { font-size: 12px; color: #666; margin-bottom: 6px; }
+    #search-wrap { position: relative; }
+    #search-input {
+      width: 100%; padding: 6px 8px; font-size: 12px;
+      border: 1px solid #ccc; border-radius: 6px; outline: none;
+      box-sizing: border-box; font-family: inherit;
+    }
+    #search-input:focus { border-color: #4a90d9; box-shadow: 0 0 0 2px rgba(74,144,217,0.15); }
+    #search-suggestions {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 1100;
+      background: white; border: 1px solid #ccc; border-radius: 6px;
+      max-height: 240px; overflow-y: auto; margin-top: 2px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: none;
+    }
+    .search-sug {
+      padding: 7px 10px; font-size: 12px; cursor: pointer;
+      border-bottom: 1px solid #f5f5f5; line-height: 1.4;
+    }
+    .search-sug:last-child { border-bottom: none; }
+    .search-sug:hover, .search-sug.active { background: #f7fbff; }
+    .search-sug-name { font-weight: bold; color: #222; }
+    .search-sug-meta { font-size: 10px; color: #888; margin-top: 2px; }
+    .search-sug-badge {
+      display: inline-block; padding: 1px 5px; border-radius: 7px;
+      font-size: 9px; font-weight: bold; margin-right: 3px;
+    }
+    .filter-row { display: flex; gap: 6px; margin-top: 6px; }
+    .filter-row select {
+      flex: 1; padding: 5px 6px; font-size: 11px;
+      border: 1px solid #ccc; border-radius: 5px;
+      background: white; font-family: inherit; cursor: pointer;
+    }
+    #filter-reset {
+      width: 100%; margin-top: 6px; padding: 5px;
+      font-size: 11px; color: #666;
+      background: #f5f5f5; border: 1px solid #ddd; border-radius: 5px;
+      cursor: pointer; font-family: inherit;
+    }
+    #filter-reset:hover { background: #e9e9e9; color: #333; }
+    #filter-status {
+      margin-top: 6px; font-size: 10px; color: #4a90d9;
+      font-weight: bold; display: none;
+    }
+
+    /* =========================
+       📱 モバイル専用レイアウト
+       ========================= */
+    #mobile-topbar, #mobile-sheet { display: none; }
+
+    @media (max-width: 820px) {
+      /* --- デスクトップ用パネルを非表示 --- */
+      #controls {
+        position: fixed; top: 0; left: 0; right: 0;
+        width: 100%; max-width: 100%;
+        max-height: 85dvh; overflow-y: auto;
+        border-radius: 0 0 18px 18px;
+        padding: 56px 16px 20px;
+        z-index: 1300;
+        transform: translateY(-100%);
+        transition: transform .28s cubic-bezier(.4,0,.2,1);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      }
+      #controls.m-open { transform: translateY(0); }
+      #controls h3 { display: none; }
+
+      /* 検索結果候補の位置 */
+      #search-suggestions { max-height: 50dvh; }
+
+      #stats, #estat-panel { display: none !important; }
+
+      /* --- 上部検索バー（常時表示） --- */
+      #mobile-topbar {
+        display: flex; align-items: center; gap: 8px;
+        position: fixed; top: 10px; left: 10px; right: 10px;
+        z-index: 1100;
+        background: white; border-radius: 24px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+        padding: 10px 14px; font-size: 14px; color: #333;
+        cursor: pointer; user-select: none;
+      }
+      #mobile-topbar .mt-icon { font-size: 16px; color: #4a90d9; }
+      #mobile-topbar .mt-text { flex: 1; color: #777; }
+      #mobile-topbar .mt-badge {
+        background: #4a90d9; color: white;
+        padding: 2px 8px; border-radius: 10px;
+        font-size: 10px; font-weight: bold;
+      }
+
+      /* --- 下部シート（情報・凡例） --- */
+      #mobile-sheet {
+        display: block;
+        position: fixed; left: 0; right: 0; bottom: 0;
+        z-index: 1050;
+        background: white;
+        border-radius: 18px 18px 0 0;
+        box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
+        height: 70dvh;
+        transform: translateY(calc(100% - 54px));
+        transition: transform .28s cubic-bezier(.4,0,.2,1);
+        display: flex; flex-direction: column; overflow: hidden;
+      }
+      #mobile-sheet.m-open { transform: translateY(0); }
+      .ms-grab {
+        display: flex; align-items: center; justify-content: center;
+        padding: 10px 12px 6px; flex-shrink: 0;
+        cursor: grab; touch-action: none;
+      }
+      .ms-grab::before {
+        content: ''; width: 44px; height: 5px;
+        background: #ccc; border-radius: 3px;
+      }
+      .ms-header {
+        padding: 0 16px 10px; font-size: 13px; font-weight: bold;
+        color: #333; display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid #eee; flex-shrink: 0;
+      }
+      .ms-header .ms-hint { font-size: 10px; color: #888; font-weight: normal; }
+      .ms-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+      .ms-body #stats-mobile { font-size: 12px; line-height: 1.8; color: #555; }
+      .ms-body #stats-mobile strong { color: #333; }
+      .ms-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eee; }
+      .ms-section h4 { font-size: 12px; color: #666; margin-bottom: 8px; }
+
+      /* 1km圏内パネル */
+      #radius-panel {
+        width: calc(100% - 20px); left: 10px; right: 10px; top: 62px;
+        max-height: calc(100dvh - 80px);
+      }
+
+      /* 1kmヒント */
+      #radius-hint { top: 62px; }
+
+      /* 閉じるボタン（検索パネル用） */
+      #controls-close {
+        position: fixed; top: 14px; right: 14px; z-index: 1310;
+        width: 36px; height: 36px; border-radius: 50%;
+        background: white; border: 1px solid #ddd;
+        display: none; align-items: center; justify-content: center;
+        font-size: 18px; color: #666; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      }
+      #controls.m-open ~ #controls-close { display: flex; }
+
+      /* Leafletズームボタンを下部シートの上に避ける */
+      .leaflet-top.leaflet-left { top: 64px; }
+      .leaflet-bottom.leaflet-right { bottom: 60px; }
+    }
   </style>
 </head>
 <body>
@@ -139,6 +289,45 @@
 
 <div id="map"></div>
 
+<!-- 📱 モバイル用トップバー（検索エントリ） -->
+<div id="mobile-topbar">
+  <span class="mt-icon">🔍</span>
+  <span class="mt-text" id="mobile-topbar-text">保育園を検索・絞り込み</span>
+  <span class="mt-badge" id="mobile-topbar-count">0</span>
+</div>
+
+<!-- 📱 モバイル用下部シート（情報・凡例） -->
+<div id="mobile-sheet">
+  <div class="ms-grab"></div>
+  <div class="ms-header">
+    <span>📊 施設情報・凡例</span>
+    <span class="ms-hint">↑ 引き上げ ・ ↓ 下げて閉じる</span>
+  </div>
+  <div class="ms-body">
+    <div id="stats-mobile"><strong>読み込み完了後に表示されます</strong></div>
+    <div class="ms-section">
+      <h4>施設種別の凡例</h4>
+      <div class="legend-item"><div class="legend-dot" style="background:#3388ff"></div>区立保育園</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2da44e"></div>私立保育園</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f08030"></div>認定こども園</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>幼稚園</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>小規模・地域型</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#888888"></div>その他</div>
+    </div>
+    <div class="ms-section">
+      <h4>使い方</h4>
+      <div style="font-size:11px;color:#666;line-height:1.7;">
+        ・上部の検索バーをタップ → 名前検索・絞り込み<br>
+        ・地図をタップ → 1km圏内の保育園を表示<br>
+        ・ピンをタップ → 施設詳細を表示
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 📱 検索パネルを閉じるボタン -->
+<div id="controls-close">✕</div>
+
 <div id="radius-hint">🖱 マップをクリックすると、その地点から1km圏内の保育園を検索します</div>
 
 <div id="radius-panel" style="display:none;">
@@ -151,9 +340,40 @@
 </div>
 
 <div id="controls">
-  <h3>🗺 レイヤー切替</h3>
-  <label class="layer-toggle"><input type="checkbox" id="chk-pins" checked> 施設ピン</label>
-  <label class="layer-toggle"><input type="checkbox" id="chk-heat"> ヒートマップ</label>
+  <h3>🔍 検索・レイヤー</h3>
+  <div class="search-section" style="margin-top:0;border-top:none;padding-top:0;">
+    <h4>🔍 保育園検索</h4>
+    <div id="search-wrap">
+      <input type="text" id="search-input" placeholder="園名を入力..." autocomplete="off" />
+      <div id="search-suggestions"></div>
+    </div>
+    <div class="filter-row">
+      <select id="filter-type">
+        <option value="">全ての種別</option>
+        <option value="区立">区立</option>
+        <option value="私立">私立</option>
+        <option value="認定こども園">認定こども園</option>
+        <option value="幼稚園">幼稚園</option>
+        <option value="小規模">小規模・地域型</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <select id="filter-ward">
+        <option value="">全ての区</option>
+        <option value="setagaya">世田谷区</option>
+        <option value="shinagawa">品川区</option>
+        <option value="suginami">杉並区</option>
+      </select>
+    </div>
+    <button id="filter-reset">リセット（全表示）</button>
+    <div id="filter-status"></div>
+  </div>
+
+  <div class="search-section">
+    <h4>🗺 レイヤー切替</h4>
+    <label class="layer-toggle"><input type="checkbox" id="chk-pins" checked> 施設ピン</label>
+    <label class="layer-toggle"><input type="checkbox" id="chk-heat"> ヒートマップ</label>
+  </div>
 
   <div class="legend">
     <h4>施設種別</h4>
@@ -920,6 +1140,13 @@ async function init() {
     `</table>` +
     `<div style="font-size:10px;color:#bbb;margin-top:4px;">※定員は区公式サイト・国土数値情報より</div>`;
 
+  // モバイル下部シートにもミラー
+  const sm = document.getElementById('stats-mobile');
+  if (sm) sm.innerHTML = document.getElementById('stats').innerHTML;
+
+  // モバイルトップバーのバッジ初期化
+  if (typeof updateMobileBadge === 'function') updateMobileBadge();
+
   document.getElementById('chk-pins').addEventListener('change', function() {
     if (this.checked) pinLayer.addTo(map); else map.removeLayer(pinLayer);
   });
@@ -936,6 +1163,18 @@ async function init() {
 
 // クリックハンドラは init 完了を待たずに即登録
 map.on('click', function(e) {
+  // モバイル：シート/検索パネルが開いていれば閉じるだけ
+  if (window.matchMedia('(max-width: 820px)').matches) {
+    const sheet = document.getElementById('mobile-sheet');
+    const controls = document.getElementById('controls');
+    const anyOpen = (sheet && sheet.classList.contains('m-open')) ||
+                    (controls && controls.classList.contains('m-open'));
+    if (anyOpen) {
+      if (sheet) sheet.classList.remove('m-open');
+      if (controls) controls.classList.remove('m-open');
+      return;
+    }
+  }
   showRadiusSearch(e.latlng.lat, e.latlng.lng);
 });
 document.addEventListener('DOMContentLoaded', function() {
@@ -1042,6 +1281,232 @@ function clearRadiusSearch() {
   radiusCenter = null;
   document.getElementById('radius-panel').style.display = 'none';
 }
+
+// ========= 検索・フィルタ機能 =========
+function wardOfArea(area) {
+  if (area === '品川') return 'shinagawa';
+  if (area === '杉並') return 'suginami';
+  return 'setagaya'; // 世田谷/北沢/玉川/砧/烏山
+}
+
+function applyFilters() {
+  const typeVal = document.getElementById('filter-type').value;
+  const wardVal = document.getElementById('filter-ward').value;
+  let shown = 0;
+  facilityIndex.forEach(item => {
+    const f = item.f;
+    const typeMatch = !typeVal || f.t === typeVal;
+    const wardMatch = !wardVal || wardOfArea(f.area) === wardVal;
+    if (typeMatch && wardMatch) {
+      if (!pinLayer.hasLayer(item.marker)) pinLayer.addLayer(item.marker);
+      shown++;
+    } else {
+      if (pinLayer.hasLayer(item.marker)) pinLayer.removeLayer(item.marker);
+    }
+  });
+  const statusEl = document.getElementById('filter-status');
+  if (!typeVal && !wardVal) {
+    statusEl.style.display = 'none';
+  } else {
+    statusEl.style.display = 'block';
+    statusEl.textContent = `✓ 絞り込み中: ${shown} / ${facilityIndex.length} 施設`;
+  }
+}
+
+function renderSuggestions(query) {
+  const sugEl = document.getElementById('search-suggestions');
+  if (!query || query.length < 1) {
+    sugEl.style.display = 'none';
+    sugEl.innerHTML = '';
+    return;
+  }
+  const q = query.toLowerCase();
+  const matches = facilityIndex
+    .filter(item => item.f.n.toLowerCase().includes(q))
+    .slice(0, 15);
+  if (matches.length === 0) {
+    sugEl.innerHTML = '<div style="padding:10px;color:#999;font-size:11px;text-align:center;">該当する施設はありません</div>';
+    sugEl.style.display = 'block';
+    return;
+  }
+  sugEl.innerHTML = matches.map((item, idx) => {
+    const f = item.f;
+    const color = getColor(f.t);
+    const bg = TYPE_BG[f.t] || '#eee';
+    const ward = f.area === '品川' ? '品川区' : f.area === '杉並' ? '杉並区' : '世田谷区';
+    return `
+      <div class="search-sug" data-fidx="${facilityIndex.indexOf(item)}">
+        <div class="search-sug-name">${f.n}</div>
+        <div class="search-sug-meta">
+          <span class="search-sug-badge" style="background:${bg};color:${color};">${f.t}</span>
+          ${ward} ・ 定員 ${f.c}名
+        </div>
+      </div>
+    `;
+  }).join('');
+  sugEl.style.display = 'block';
+
+  sugEl.querySelectorAll('.search-sug').forEach(el => {
+    el.addEventListener('click', function() {
+      const fidx = parseInt(this.dataset.fidx, 10);
+      const item = facilityIndex[fidx];
+      if (!item) return;
+      // 絞り込みで非表示だった場合は復帰
+      if (!pinLayer.hasLayer(item.marker)) pinLayer.addLayer(item.marker);
+      map.setView([item.lat, item.lng], Math.max(map.getZoom(), 16));
+      item.marker.openPopup();
+      document.getElementById('search-input').value = item.f.n;
+      sugEl.style.display = 'none';
+    });
+  });
+}
+
+function setupSearchAndFilters() {
+  const input = document.getElementById('search-input');
+  const sugEl = document.getElementById('search-suggestions');
+  input.addEventListener('input', function() { renderSuggestions(this.value.trim()); });
+  input.addEventListener('focus', function() { if (this.value.trim()) renderSuggestions(this.value.trim()); });
+  // パネル外クリックで候補を閉じる
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#search-wrap')) sugEl.style.display = 'none';
+  });
+
+  document.getElementById('filter-type').addEventListener('change', applyFilters);
+  document.getElementById('filter-ward').addEventListener('change', applyFilters);
+  document.getElementById('filter-reset').addEventListener('click', function() {
+    document.getElementById('filter-type').value = '';
+    document.getElementById('filter-ward').value = '';
+    document.getElementById('search-input').value = '';
+    sugEl.style.display = 'none';
+    applyFilters();
+  });
+}
+
+// 検索UIは facilityIndex が空でも動くので、DOM 準備完了ですぐセットアップ
+if (document.readyState !== 'loading') {
+  setupSearchAndFilters();
+  setupMobileSheet();
+} else {
+  document.addEventListener('DOMContentLoaded', function() {
+    setupSearchAndFilters();
+    setupMobileSheet();
+  });
+}
+
+// ========= 📱 モバイル対応 =========
+function isMobile() { return window.matchMedia('(max-width: 820px)').matches; }
+
+function setupMobileSheet() {
+  const topbar = document.getElementById('mobile-topbar');
+  const controls = document.getElementById('controls');
+  const closeBtn = document.getElementById('controls-close');
+  const sheet = document.getElementById('mobile-sheet');
+  const grab = sheet.querySelector('.ms-grab');
+  const header = sheet.querySelector('.ms-header');
+
+  // 上部検索バーのタップ → 検索パネルを開く
+  topbar.addEventListener('click', function() {
+    controls.classList.add('m-open');
+    setTimeout(() => {
+      const input = document.getElementById('search-input');
+      if (input) input.focus();
+    }, 300);
+  });
+
+  // 閉じるボタン
+  closeBtn.addEventListener('click', function() {
+    controls.classList.remove('m-open');
+    document.activeElement && document.activeElement.blur();
+  });
+
+  // --- 下部シートのドラッグ処理 ---
+  let startY = 0, cur = 0, active = false, pid = null;
+  let openAtStart = false;
+
+  function down(e) {
+    if (!isMobile()) return;
+    active = true;
+    startY = e.clientY;
+    cur = 0;
+    pid = e.pointerId;
+    openAtStart = sheet.classList.contains('m-open');
+    sheet.style.transition = 'none';
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_) {}
+  }
+  function move(e) {
+    if (!active || e.pointerId !== pid) return;
+    const dy = e.clientY - startY;
+    cur = dy;
+    if (openAtStart) {
+      // 開いた状態: 下げる方向のみ有効
+      if (dy > 0) sheet.style.transform = 'translateY(' + dy + 'px)';
+    } else {
+      // 閉じた状態: 上げる方向のみ有効
+      if (dy < 0) sheet.style.transform = 'translateY(calc(100% - 54px + ' + dy + 'px))';
+    }
+    e.preventDefault();
+  }
+  function up(e) {
+    if (!active) return;
+    active = false;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    if (openAtStart) {
+      // 70px以上下げたら閉じる
+      if (cur > 70) sheet.classList.remove('m-open');
+    } else {
+      // 50px以上上げたら開く
+      if (cur < -50) sheet.classList.add('m-open');
+    }
+  }
+  [grab, header].forEach(function(el) {
+    if (!el) return;
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  });
+
+  // ヘッダーのタップでトグル
+  let tapStart = 0;
+  header.addEventListener('pointerdown', () => { tapStart = Date.now(); });
+  header.addEventListener('pointerup', (e) => {
+    if (Date.now() - tapStart < 200 && Math.abs(cur) < 10) {
+      sheet.classList.toggle('m-open');
+    }
+  });
+}
+
+// モバイル用トップバーの件数表示を更新
+function updateMobileBadge() {
+  const badge = document.getElementById('mobile-topbar-count');
+  if (!badge) return;
+  const typeVal = document.getElementById('filter-type').value;
+  const wardVal = document.getElementById('filter-ward').value;
+  let shown = 0;
+  facilityIndex.forEach(item => {
+    const f = item.f;
+    const typeMatch = !typeVal || f.t === typeVal;
+    const wardMatch = !wardVal || wardOfArea(f.area) === wardVal;
+    if (typeMatch && wardMatch) shown++;
+  });
+  badge.textContent = shown;
+  const text = document.getElementById('mobile-topbar-text');
+  if (typeVal || wardVal) {
+    text.textContent = '絞り込み中 ・ タップで変更';
+    text.style.color = '#4a90d9';
+  } else {
+    text.textContent = '保育園を検索・絞り込み';
+    text.style.color = '#777';
+  }
+}
+// applyFilters の末尾でも呼ぶ
+const _origApplyFilters = applyFilters;
+applyFilters = function() {
+  _origApplyFilters();
+  updateMobileBadge();
+};
 
 // スクリプトエラーが起きた場合にローディング画面へ表示
 window.addEventListener('error', function(ev) {
