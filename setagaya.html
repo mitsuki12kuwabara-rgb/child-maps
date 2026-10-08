@@ -174,8 +174,50 @@
     }
 
     /* =========================
-       🖥 PC用: 左上の検索バー
+       🖥 PC用: 左上の検索バー＋常時表示パネル
        ========================= */
+    /* radius-panel 内のデフォルトセクション */
+    .rp-section { padding: 12px 14px; border-bottom: 1px solid #eee; }
+    .rp-section:last-child { border-bottom: none; }
+    .rp-section h4 { font-size: 12px; color: #666; margin-bottom: 8px; font-weight: bold; }
+    #stats-left { font-size: 12px; line-height: 1.8; color: #555; }
+    #stats-left strong { color: #333; }
+    #estat-left .estat-ward { margin-bottom: 10px; }
+    #estat-left .estat-ward:last-child { margin-bottom: 0; }
+    #rp-default { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+    #rp-radius { flex-direction: column; flex: 1; overflow: hidden; }
+
+    @media (min-width: 821px) {
+      /* 右下の在園者パネル・左下の統計パネルは左上パネルに統合するため非表示 */
+      #stats, #estat-panel { display: none !important; }
+
+      /* 検索・レイヤーパネルはドロップダウン化（検索バークリックで開閉） */
+      #controls {
+        position: fixed !important;
+        top: 60px !important; left: 12px !important;
+        right: auto !important;
+        width: 340px !important; min-width: 0 !important;
+        max-height: calc(100vh - 76px);
+        overflow-y: auto;
+        padding: 14px 16px;
+        z-index: 1500;
+        display: none;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+      }
+      #controls.pc-open { display: block; }
+      #controls h3 { display: none; }
+
+      /* 1kmパネルを常時表示（左側） */
+      #radius-panel {
+        display: flex !important;
+        top: 60px;  /* 検索バーの下 */
+        left: 12px;
+        max-height: calc(100vh - 76px);
+      }
+
+      /* ラジアスヒント不要 */
+      #radius-hint { display: none; }
+    }
     #pc-searchbar {
       position: fixed; top: 12px; left: 12px; z-index: 1050;
       width: 320px;
@@ -185,7 +227,6 @@
       padding: 10px 14px; font-size: 13px; color: #333;
       transition: top .2s;
     }
-    #pc-searchbar.radius-active { top: auto; left: 360px; width: 280px; } /* 1kmパネル展開中は右へ退避 */
     #pc-searchbar .pcs-icon { color: #4a90d9; font-size: 15px; }
     #pc-searchbar input {
       flex: 1; border: none; outline: none; font-size: 13px;
@@ -201,11 +242,7 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.18);
       max-height: 400px; overflow-y: auto; display: none;
     }
-    #pc-searchbar.radius-active + #pc-sug { left: 360px; width: 280px; }
-
-    /* 1kmパネル展開中はPC検索バーを右上へ移動 */
-    body.radius-open #pc-searchbar { top: 12px; left: 360px; width: 280px; }
-    body.radius-open #pc-sug { top: 54px; left: 360px; width: 280px; }
+    /* PC検索バーは常に左上固定（1kmパネルは下に常時表示されるため退避不要） */
 
     /* =========================
        📱 モバイル専用レイアウト
@@ -376,12 +413,31 @@
 <div id="radius-hint">🖱 マップをクリックすると、その地点から1km圏内の保育園を検索します</div>
 
 <div id="radius-panel" style="display:none;">
-  <div id="radius-header">
-    <h3>📍 半径 1km 圏内の保育園</h3>
-    <span id="radius-close" title="閉じる">✕</span>
+  <!-- デフォルト表示（1km検索未使用時） -->
+  <div id="rp-default">
+    <div class="rp-section">
+      <h4>📊 マップ掲載施設</h4>
+      <div id="stats-left"><span style="color:#999;">読み込み中...</span></div>
+    </div>
+    <div class="rp-section">
+      <h4>👶 幼稚園 在園者数（令和7年）</h4>
+      <div id="estat-left"></div>
+    </div>
+    <div class="rp-section" style="margin-top:auto;">
+      <div style="font-size:10px;color:#999;line-height:1.6;padding:10px 14px;background:#fafafa;border-radius:0 0 10px 10px;">
+        🖱 マップ上をクリックすると、その地点から1km圏内の保育園を検索できます
+      </div>
+    </div>
   </div>
-  <div id="radius-info"></div>
-  <div id="radius-list"></div>
+  <!-- 1km検索表示 -->
+  <div id="rp-radius" style="display:none;">
+    <div id="radius-header">
+      <h3>📍 半径 1km 圏内の保育園</h3>
+      <span id="radius-close" title="閉じる">✕</span>
+    </div>
+    <div id="radius-info"></div>
+    <div id="radius-list"></div>
+  </div>
 </div>
 
 <div id="controls">
@@ -1196,6 +1252,12 @@ async function init() {
   const sm = document.getElementById('stats-mobile');
   if (sm) sm.innerHTML = document.getElementById('stats').innerHTML;
 
+  // 左側パネル（PC常時表示）にもミラー
+  const sl = document.getElementById('stats-left');
+  if (sl) sl.innerHTML = document.getElementById('stats').innerHTML;
+  const el = document.getElementById('estat-left');
+  if (el) el.innerHTML = document.getElementById('estat-body').innerHTML;
+
   // モバイルトップバーのバッジ初期化
   if (typeof updateMobileBadge === 'function') updateMobileBadge();
 
@@ -1275,6 +1337,11 @@ function showRadiusSearch(lat, lng) {
 
   const panel = document.getElementById('radius-panel');
   panel.style.display = 'flex';
+  // 1km表示に切り替え（デフォルトセクションを隠す）
+  const rpDef = document.getElementById('rp-default');
+  const rpRad = document.getElementById('rp-radius');
+  if (rpDef) rpDef.style.display = 'none';
+  if (rpRad) rpRad.style.display = 'flex';
   document.body.classList.add('radius-open');
 
   document.getElementById('radius-info').innerHTML =
@@ -1332,7 +1399,14 @@ function clearRadiusSearch() {
     radiusCircle = null;
   }
   radiusCenter = null;
-  document.getElementById('radius-panel').style.display = 'none';
+  // PC: デフォルト表示に戻す（パネル自体は常時表示）/ モバイル: 完全に閉じる
+  const rpDef = document.getElementById('rp-default');
+  const rpRad = document.getElementById('rp-radius');
+  if (rpDef) rpDef.style.display = 'flex';
+  if (rpRad) rpRad.style.display = 'none';
+  if (window.matchMedia('(max-width: 820px)').matches) {
+    document.getElementById('radius-panel').style.display = 'none';
+  }
   document.body.classList.remove('radius-open');
 }
 
@@ -1463,14 +1537,48 @@ function setupPcSearch() {
   const input = document.getElementById('pc-search-input');
   const sugEl = document.getElementById('pc-sug');
   const badge = document.getElementById('pc-search-badge');
+  const searchbar = document.getElementById('pc-searchbar');
+  const controls = document.getElementById('controls');
   if (!input) return;
+
   input.addEventListener('input', function() { renderPcSuggestions(this.value.trim()); });
-  input.addEventListener('focus', function() { if (this.value.trim()) renderPcSuggestions(this.value.trim()); });
+  input.addEventListener('focus', function() {
+    // 入力フォーカスで検索・フィルタパネルも自動で開く
+    if (controls && window.matchMedia('(min-width: 821px)').matches) {
+      controls.classList.add('pc-open');
+    }
+    if (this.value.trim()) renderPcSuggestions(this.value.trim());
+  });
+
+  // 検索バー全体のクリックで検索・フィルタパネルを開閉（PC のみ）
+  searchbar.addEventListener('click', function(e) {
+    if (!controls) return;
+    if (!window.matchMedia('(min-width: 821px)').matches) return;
+    // 入力欄クリックは focus 側で開く
+    if (e.target === input) return;
+    controls.classList.toggle('pc-open');
+    if (controls.classList.contains('pc-open')) input.focus();
+  });
+
+  // パネル外クリックで閉じる（候補＆ドロップダウン）
   document.addEventListener('click', function(e) {
     if (!e.target.closest('#pc-searchbar') && !e.target.closest('#pc-sug')) {
       sugEl.style.display = 'none';
     }
+    if (!e.target.closest('#pc-searchbar') && !e.target.closest('#controls') && !e.target.closest('#pc-sug')) {
+      if (controls) controls.classList.remove('pc-open');
+    }
   });
+
+  // ESC で閉じる
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      sugEl.style.display = 'none';
+      if (controls) controls.classList.remove('pc-open');
+      input.blur();
+    }
+  });
+
   // 初期件数
   if (badge) badge.textContent = facilityIndex.length || FACILITIES.length;
 }
