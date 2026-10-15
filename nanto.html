@@ -358,7 +358,7 @@
   <h2>施設の位置情報を取得中...</h2>
   <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
   <div id="progress-text">0 / 0</div>
-  <div style="font-size:12px;color:#999;">世田谷区: 国土地理院APIでジオコーディング中（初回のみ時間がかかります）<br>品川区: 国土数値情報の座標を使用（即時表示）</div>
+  <div style="font-size:12px;color:#999;">国土地理院APIでジオコーディング中（初回のみ時間がかかります）</div>
 </div>
 
 <div id="map"></div>
@@ -556,7 +556,7 @@ const TYPE_BG = {
 
 const map = L.map('map').setView([36.55, 136.88], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | 施設データ: 世田谷区・品川区 / 国土数値情報 | ジオコーディング: 国土地理院',
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | 施設データ: 南砺市公式 / ジオコーディング: 国土地理院',
   maxZoom: 19
 }).addTo(map);
 
@@ -694,27 +694,36 @@ async function init() {
     wardStats[ward].types[f.t] = (wardStats[ward].types[f.t] || 0) + 1;
   });
 
-  const setagaya = wardStats['世田谷区'] || { count: 0, cap: 0 };
-  const shinagawa = wardStats['品川区'] || { count: 0, cap: 0 };
-  const suginami = wardStats['杉並区'] || { count: 0, cap: 0 };
+  // 種別別集計
+  const typeCounts = {}, typeCaps = {};
+  FACILITIES.forEach(f => {
+    typeCounts[f.t] = (typeCounts[f.t] || 0) + 1;
+    typeCaps[f.t] = (typeCaps[f.t] || 0) + f.c;
+  });
+  // 保育系・習い事系に分類
+  const hoiku = ['市立','私立','認定こども園','小規模'];
+  const narai = ['学習塾','音楽教室','スポーツ'];
+  const sum = (keys, obj) => keys.reduce((s,k)=>s+(obj[k]||0), 0);
+  const hoikuCount = sum(hoiku, typeCounts), hoikuCap = sum(hoiku, typeCaps);
+  const naraiCount = sum(narai, typeCounts), naraiCap = sum(narai, typeCaps);
 
   document.getElementById('stats').innerHTML =
     `<strong>🗺 南砺市 子ども・教育施設（公式データ）</strong><br>` +
     `<table style="width:100%;border-collapse:collapse;margin-top:4px;font-size:11px;">` +
-    `<tr style="color:#888"><td></td><td style="text-align:center">施設数</td><td style="text-align:center">総定員</td></tr>` +
-    `<tr><td style="color:#333;font-weight:bold">世田谷区</td>` +
-    `<td style="text-align:center;font-weight:bold;color:#4a90d9">${setagaya.count}施設</td>` +
-    `<td style="text-align:center;font-weight:bold;color:#4a90d9">${setagaya.cap.toLocaleString()}名</td></tr>` +
-    `<tr><td style="color:#333;font-weight:bold">品川区</td>` +
-    `<td style="text-align:center;font-weight:bold;color:#e07030">${shinagawa.count}施設</td>` +
-    `<td style="text-align:center;font-weight:bold;color:#e07030">${shinagawa.cap.toLocaleString()}名</td></tr>` +
-    `<tr><td style="color:#333;font-weight:bold">杉並区</td>` +
-    `<td style="text-align:center;font-weight:bold;color:#2da44e">${suginami.count}施設</td>` +
-    `<td style="text-align:center;font-weight:bold;color:#2da44e">${suginami.cap.toLocaleString()}名</td></tr>` +
+    `<tr style="color:#888"><td></td><td style="text-align:center">施設数</td><td style="text-align:center">定員計</td></tr>` +
+    `<tr><td style="color:#333;font-weight:bold">保育・幼児教育</td>` +
+    `<td style="text-align:center;font-weight:bold;color:#4a90d9">${hoikuCount}施設</td>` +
+    `<td style="text-align:center;font-weight:bold;color:#4a90d9">${hoikuCap.toLocaleString()}名</td></tr>` +
+    `<tr><td style="color:#333;font-weight:bold">習い事</td>` +
+    `<td style="text-align:center;font-weight:bold;color:#9b59b6">${naraiCount}施設</td>` +
+    `<td style="text-align:center;color:#aaa;font-size:10px">(規模目安)</td></tr>` +
     `<tr style="border-top:1px solid #eee"><td style="color:#888;padding-top:2px">合計</td>` +
     `<td style="text-align:center;color:#888;padding-top:2px">${plotted}施設</td>` +
     `<td style="text-align:center;color:#888;padding-top:2px">${totalCapacity.toLocaleString()}名</td></tr>` +
     `</table>` +
+    `<div style="font-size:10px;color:#aaa;margin-top:6px;border-top:1px solid #eee;padding-top:4px;line-height:1.6;">` +
+    `市立${typeCounts['市立']||0}園 / 私立${typeCounts['私立']||0}園 / 認定こども園${typeCounts['認定こども園']||0}園 / 小規模${typeCounts['小規模']||0}園<br>` +
+    `学習塾${typeCounts['学習塾']||0} / 音楽${typeCounts['音楽教室']||0} / スポーツ${typeCounts['スポーツ']||0}</div>` +
     `<div style="font-size:10px;color:#bbb;margin-top:4px;">※定員は南砺市公式サイトより</div>`;
 
   // モバイル下部シートにもミラー
