@@ -779,7 +779,11 @@ if (document.readyState !== 'loading') {
 
 function showRadiusSearch(lat, lng) {
   radiusCenter = { lat, lng };
-  if (radiusCircle) map.removeLayer(radiusCircle);
+  // 既存の円＋中心マーカーを両方削除（ピンは常に1つだけに）
+  if (radiusCircle) {
+    if (radiusCircle._centerMarker) map.removeLayer(radiusCircle._centerMarker);
+    map.removeLayer(radiusCircle);
+  }
   radiusCircle = L.circle([lat, lng], {
     radius: RADIUS_KM * 1000,
     color: '#e74c3c',
