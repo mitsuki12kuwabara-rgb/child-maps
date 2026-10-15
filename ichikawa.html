@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>市川市 子どもマップ</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Hiragino Sans', 'Meiryo', 'Yu Gothic', sans-serif; }
+    #map { width: 100vw; height: 100vh; }
+
+    /* ── Loading ── */
+    #loading {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.96);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; gap: 14px;
+    }
+    .loading-icon { font-size: 52px; animation: float 2s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+    #loading h2 { font-size: 18px; font-weight: 700; color: #222; }
+    #progress-bar-wrap { width: 300px; background: #e8eef8; border-radius: 99px; height: 7px; overflow: hidden; }
+    #progress-bar { height: 100%; background: linear-gradient(90deg,#4a90d9,#76baff); border-radius: 99px; width: 0%; transition: width 0.2s; }
+    #progress-text { font-size: 12px; color: #999; }
+
+    /* ── Control Panel ── */
+    #panel {
+      position: fixed; top: 12px; right: 12px; z-index: 1000;
+      background: #fff; border-radius: 16px; padding: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.13); width: 248px;
+    }
+    #panel-title {
+      font-size: 15px; font-weight: 800; color: #1a1a1a;
+      margin-bottom: 13px; padding-bottom: 11px; border-bottom: 1.5px solid #f2f2f2;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Search */
+    #search-wrap { position: relative; margin-bottom: 12px; }
+    #search-input {
+      width: 100%; padding: 8px 30px 8px 32px;
+      border: 1.5px solid #e4e4e4; border-radius: 9px;
+      font-size: 13px; color: #333; outline: none; transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    #search-input:focus { border-color: #4a90d9; }
+    #search-input::placeholder { color: #bbb; }
+    .search-icon {
+      position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+      font-size: 14px; color: #bbb; pointer-events: none;
+    }
+    #search-clear {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      font-size: 13px; color: #ccc; cursor: pointer; background: none; border: none;
+      display: none; line-height: 1; padding: 2px;
+    }
+    #search-clear:hover { color: #888; }
+
+    /* Type filter pills */
+    .section-label { font-size: 10px; color: #aaa; font-weight: 700; letter-spacing: 0.08em; margin-bottom: 7px; }
+    #filter-section { margin-bottom: 12px; }
+    #filter-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .filter-pill {
+      padding: 4px 9px; border-radius: 99px; font-size: 11px; font-weight: 700;
+      border: 1.5px solid; cursor: pointer; transition: all 0.15s;
+      user-select: none;
+    }
+    .filter-pill.on { color: #fff; }
+    .filter-pill.off { background: #f6f6f6 !important; color: #aaa !important; border-color: #e0e0e0 !important; }
+
+    /* View toggles */
+    #view-section { margin-bottom: 10px; }
+    .view-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 0; cursor: pointer; border-radius: 8px;
+    }
+    .view-row:hover { background: #f9f9f9; padding-left: 4px; padding-right: 4px; margin: 0 -4px; }
+    .view-row-label { font-size: 13px; color: #444; }
+    .sw {
+      width: 36px; height: 20px; background: #ddd; border-radius: 99px;
+      position: relative; transition: background 0.2s; flex-shrink: 0;
+    }
+    .sw.on { background: #4a90d9; }
+    .sw::after {
+      content: ''; position: absolute; top: 3px; left: 3px;
+      width: 14px; height: 14px; background: #fff; border-radius: 50%;
+      transition: left 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .sw.on::after { left: 19px; }
+
+    /* Count */
+    #result-count {
+      text-align: center; font-size: 11px; color: #bbb;
+      padding-top: 10px; border-top: 1.5px solid #f2f2f2; margin-top: 2px;
+    }
+    #result-count b { color: #4a90d9; font-size: 15px; }
+
+    /* ── Stats Panel ── */
+    #stats {
+      position: fixed; bottom: 12px; left: 12px; z-index: 1000;
+      background: #fff; border-radius: 16px; padding: 14px 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.13); min-width: 210px;
+    }
+    #stats-title { font-size: 13px; font-weight: 800; color: #1a1a1a; margin-bottom: 10px; }
+    .st-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    .st-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .st-name { flex: 1; font-size: 11px; color: #666; }
+    .st-n { font-size: 11px; font-weight: 700; color: #333; text-align: right; min-width: 28px; }
+    .st-cap { font-size: 10px; color: #aaa; text-align: right; min-width: 52px; }
+    #stats-total {
+      margin-top: 9px; padding-top: 9px; border-top: 1.5px solid #f2f2f2;
+      display: flex; align-items: baseline; justify-content: space-between;
+    }
+    #stats-total-label { font-size: 12px; font-weight: 700; color: #333; }
+    #stats-total-num { font-size: 22px; font-weight: 800; color: #4a90d9; line-height: 1; }
+    #stats-total-unit { font-size: 11px; color: #aaa; margin-left: 2px; }
+
+    /* ── Source note ── */
+    #src-note {
+      position: fixed; bottom: 12px; right: 12px; z-index: 1000;
+      background: #fff; border-radius: 10px; padding: 8px 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.10); font-size: 10px; color: #bbb;
+      line-height: 1.7; max-width: 200px;
+    }
+
+    /* ── Popup ── */
+    .leaflet-popup-content { font-family: 'Hiragino Sans','Meiryo',sans-serif; min-width: 185px; font-size: 13px; }
+    .pp-name { font-size: 14px; font-weight: 800; color: #1a1a1a; margin-bottom: 5px; line-height: 1.4; }
+    .pp-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 99px;
+      font-size: 10px; font-weight: 800; margin-bottom: 7px;
+    }
+    .pp-addr { font-size: 11px; color: #999; margin-bottom: 9px; line-height: 1.5; }
+    .pp-cap-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+    .pp-cap-num { font-size: 24px; font-weight: 800; color: #4a90d9; line-height: 1; }
+    .pp-cap-unit { font-size: 11px; color: #888; margin-left: 2px; }
+    .pp-bar-wrap { margin-top: 7px; background: #eff4fb; border-radius: 4px; height: 5px; overflow: hidden; }
+    .pp-bar { height: 100%; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loading-icon">🗺️</div>
+  <h2>施設の位置情報を取得中...</h2>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="progress-text">0 / 0 件処理中...</div>
+  <div style="font-size:11px;color:#ccc;">国土地理院APIでジオコーディング中（初回のみ時間がかかります）</div>
+</div>
+
+<div id="map"></div>
+
+<div id="panel">
+  <div id="panel-title">🗺 市川市 子どもマップ</div>
+
+  <div id="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="施設名で検索...">
+    <button id="search-clear">✕</button>
+  </div>
+
+  <div id="filter-section">
+    <div class="section-label">種別でしぼる</div>
+    <div id="filter-pills">
+      <div class="filter-pill on" data-type="公立"       style="background:#3388ff;border-color:#3388ff;">公立</div>
+      <div class="filter-pill on" data-type="私立"       style="background:#2da44e;border-color:#2da44e;">私立</div>
+      <div class="filter-pill on" data-type="認定こども園" style="background:#f08030;border-color:#f08030;">こども園</div>
+      <div class="filter-pill on" data-type="小規模"     style="background:#e67e22;border-color:#e67e22;">小規模</div>
+      <div class="filter-pill on" data-type="事業所内"   style="background:#9b59b6;border-color:#9b59b6;">事業所内</div>
+    </div>
+  </div>
+
+  <div id="view-section">
+    <div class="section-label">表示切替</div>
+    <div class="view-row" id="row-pins">
+      <span class="view-row-label">📍 施設ピン</span>
+      <div class="sw on" id="sw-pins"></div>
+    </div>
+    <div class="view-row" id="row-heat">
+      <span class="view-row-label">🔥 ヒートマップ</span>
+      <div class="sw" id="sw-heat"></div>
+    </div>
+  </div>
+
+  <div id="result-count">表示中: <b id="count-num">—</b> 施設</div>
+</div>
+
+<div id="stats">
+  <div id="stats-title">📊 施設統計</div>
+  <div id="stats-rows"></div>
+  <div id="stats-total">
+    <span id="stats-total-label">総定員</span>
+    <span><span id="stats-total-num">—</span><span id="stats-total-unit"> 名</span></span>
+  </div>
+</div>
+
+<div id="src-note">
+  📋 出典: 市川市公式Webサイト（こども施設入園課）<br>
+  地図: OpenStreetMap / Leaflet<br>
+  座標: 国土地理院ジオコーディングAPI
+</div>
+
+<script>
+// ===== 市川市 保育施設データ =====
+const FACILITIES = [
+  // 公立保育園（16施設）
+  {n:"平田保育園",           a:"千葉県市川市平田1-20-16",lat:35.724876,lng:139.919571,        c:110, t:"公立"},
+  {n:"若宮保育園",           a:"千葉県市川市若宮3-7-6",lat:35.724342,lng:139.951691,          c:60,  t:"公立"},
+  {n:"富貴島保育園",         a:"千葉県市川市八幡6-14-19",lat:35.72879,lng:139.935013,        c:90,  t:"公立"},
+  {n:"新田保育園",           a:"千葉県市川市新田3-21-1",lat:35.723427,lng:139.912155,         c:120, t:"公立"},
+  {n:"鬼高保育園",           a:"千葉県市川市鬼高1-11-20",lat:35.711506,lng:139.931976,        c:120, t:"公立"},
+  {n:"行徳保育園",           a:"千葉県市川市行徳駅前4-22-17",lat:35.678581,lng:139.913696,    c:150, t:"公立"},
+  {n:"曽谷保育園",           a:"千葉県市川市曽谷7-28-15",lat:35.748577,lng:139.926239,        c:120, t:"公立"},
+  {n:"本北方保育園",         a:"千葉県市川市本北方2-40-23",lat:35.731125,lng:139.949371,      c:130, t:"公立"},
+  {n:"菅野保育園",           a:"千葉県市川市菅野4-12-16",lat:35.732697,lng:139.927017,        c:120, t:"公立"},
+  {n:"塩焼保育園",           a:"千葉県市川市塩焼2-2-5",lat:35.688358,lng:139.926529,          c:150, t:"公立"},
+  {n:"稲荷木保育園",         a:"千葉県市川市稲荷木1-26-16",lat:35.711708,lng:139.924469,      c:100, t:"公立"},
+  {n:"新田第2保育園",        a:"千葉県市川市新田2-1-24",lat:35.725517,lng:139.91597,         c:120, t:"公立"},
+  {n:"塩焼第2保育園",        a:"千葉県市川市塩焼3-11-15",lat:35.685471,lng:139.924484,        c:120, t:"公立"},
+  {n:"塩浜保育園",           a:"千葉県市川市塩浜4-2-10",lat:35.662861,lng:139.908096,         c:120, t:"公立"},
+  {n:"大野保育園",           a:"千葉県市川市南大野2-4-5",lat:35.742725,lng:139.953125,        c:150, t:"公立"},
+  {n:"香取保育園",           a:"千葉県市川市香取2-6-25",lat:35.679703,lng:139.909073,         c:70,  t:"公立"},
+  // 私立保育園
+  {n:"国府台保育園",         a:"千葉県市川市国府台2-9-13",lat:35.746578,lng:139.900391,       c:120, t:"私立"},
+  {n:"行徳あけぼの保育園",   a:"千葉県市川市関ケ島7-3",lat:35.689842,lng:139.916763,          c:150, t:"私立"},
+  {n:"新井保育園",           a:"千葉県市川市新井2-1-21",lat:35.677402,lng:139.894653,         c:140, t:"私立"},
+  {n:"さかえ保育園",         a:"千葉県市川市北国分1-14-26",lat:35.760014,lng:139.90361,      c:60,  t:"私立"},
+  {n:"つくし保育園",         a:"千葉県市川市東国分1-21-22",lat:35.742558,lng:139.924438,      c:90,  t:"私立"},
+  {n:"まきば保育園",         a:"千葉県市川市須和田1-29-15",lat:35.738319,lng:139.921738,      c:70,  t:"私立"},
+  {n:"愛泉保育園",           a:"千葉県市川市幸2-8-17",lat:35.678913,lng:139.926132,           c:190, t:"私立"},
+  {n:"百合台保育園",         a:"千葉県市川市曽谷3-11-1",lat:35.742863,lng:139.93338,         c:100, t:"私立"},
+  {n:"ときわ保育園",         a:"千葉県市川市若宮2-19-13",lat:35.721519,lng:139.955017,        c:70,  t:"私立"},
+  {n:"仁保育園",             a:"千葉県市川市南行徳1-10-5",lat:35.673256,lng:139.904968,       c:130, t:"私立"},
+  {n:"原木保育園",           a:"千葉県市川市田尻5-15-9",lat:35.702057,lng:139.93515,         c:90,  t:"私立"},
+  {n:"杉の木保育園",         a:"千葉県市川市鬼高3-18-17",lat:35.711025,lng:139.934433,        c:60,  t:"私立"},
+  {n:"柏井保育園",           a:"千葉県市川市柏井町2-718-3",lat:35.74213,lng:139.967575,      c:90,  t:"私立"},
+  {n:"花の子保育園",         a:"千葉県市川市大野町3-1668-1",lat:35.757137,lng:139.95282,     c:60,  t:"私立"},
+  {n:"明徳本八幡駅保育園",   a:"千葉県市川市八幡2-11-2",lat:35.720367,lng:139.929062,         c:60,  t:"私立"},
+  {n:"わたぐも保育園",       a:"千葉県市川市原木2-10-13",lat:35.700703,lng:139.946838,        c:60,  t:"私立"},
+  {n:"アップルナースリー保育園", a:"千葉県市川市相之川4-3-1",lat:35.675003,lng:139.902664,    c:28,  t:"私立"},
+  {n:"すえひろ保育園",       a:"千葉県市川市末広1-1-48",lat:35.686951,lng:139.917526,         c:60,  t:"私立"},
+  {n:"さくらんぼ保育園",     a:"千葉県市川市市川南2-6-22",lat:35.72319,lng:139.904678,       c:95,  t:"私立"},
+  {n:"じゃんぐる保育園",     a:"千葉県市川市妙典4-10-4",lat:35.690792,lng:139.929443,         c:30,  t:"私立"},
+  {n:"かいづか保育園",       a:"千葉県市川市下貝塚3-9-3",lat:35.74115,lng:139.946564,        c:60,  t:"私立"},
+  {n:"うみかぜ保育園",       a:"千葉県市川市原木1-15-24",lat:35.702957,lng:139.945206,        c:60,  t:"私立"},
+  {n:"キッド・ステイ南行徳保育園", a:"千葉県市川市香取2-19-10",lat:35.678371,lng:139.909134, c:110, t:"私立"},
+  {n:"太陽の子保育園",       a:"千葉県市川市相之川3-10-15",lat:35.675251,lng:139.899109,      c:60,  t:"私立"},
+  {n:"市川キッズステーション", a:"千葉県市川市市川南1-10-1",lat:35.728882,lng:139.90744,     c:44,  t:"私立"},
+  {n:"市川大野ナーサリースクール", a:"千葉県市川市大野町3-1438-1",lat:35.754017,lng:139.95578, c:90, t:"私立"},
+  {n:"広尾みらい保育園",     a:"千葉県市川市広尾2-3-1",lat:35.679825,lng:139.890335,          c:90,  t:"私立"},
+  {n:"あじさい保育園",       a:"千葉県市川市妙典5-12-16",lat:35.690548,lng:139.93074,        c:100, t:"私立"},
+  {n:"キッド・ステイ原木中山保育園", a:"千葉県市川市高谷2-2-16",lat:35.699436,lng:139.936783, c:110, t:"私立"},
+  {n:"アスク行徳保育園",     a:"千葉県市川市行徳駅前1-5-14",lat:35.684422,lng:139.916611,    c:60,  t:"私立"},
+  {n:"アスク本八幡保育園",   a:"千葉県市川市大和田1-5-2",lat:35.716011,lng:139.921295,        c:60,  t:"私立"},
+  {n:"ありのみ保育園",       a:"千葉県市川市下貝塚1-3-23",lat:35.741257,lng:139.943176,       c:90,  t:"私立"},
+  {n:"市川どろんこ保育園",   a:"千葉県市川市鬼越2-18-17",lat:35.717617,lng:139.935577,        c:120, t:"私立"},
+  {n:"小学館アカデミーいちかわ南保育園", a:"千葉県市川市市川南3-13-12",lat:35.731075,lng:139.900589, c:69, t:"私立"},
+  {n:"こうぜん保育園市川",   a:"千葉県市川市南大野2-23-11",lat:35.74651,lng:139.949615,      c:90,  t:"私立"},
+  {n:"すくすくの杜南行徳園", a:"千葉県市川市欠真間1-4-7",lat:35.679142,lng:139.902679,        c:90,  t:"私立"},
+  {n:"保育ルームフェリーチェ京成八幡園", a:"千葉県市川市八幡3-25-12",lat:35.724911,lng:139.927292, c:39, t:"私立"},
+  {n:"保育ルームフェリーチェ行徳園", a:"千葉県市川市湊3-1",lat:35.685085,lng:139.912506,      c:30,  t:"私立"},
+  {n:"キッド・ステイ妙典保育園", a:"千葉県市川市富浜2-5-28",lat:35.689491,lng:139.922333,     c:110, t:"私立"},
+  {n:"つばさ保育園",         a:"千葉県市川市南行徳3-12-12",lat:35.668922,lng:139.902328,      c:69,  t:"私立"},
+  {n:"保育ルームフェリーチェ南行徳園", a:"千葉県市川市南行徳1-12-2",lat:35.67247,lng:139.905701, c:35, t:"私立"},
+  {n:"市川保育園",           a:"千葉県市川市市川2-24-12",lat:35.732876,lng:139.904175,        c:120, t:"私立"},
+  {n:"かけまま保育園",       a:"千葉県市川市欠真間2-25-8",lat:35.676476,lng:139.90329,       c:60,  t:"私立"},
+  {n:"行徳第二保育園",       a:"千葉県市川市行徳駅前4-26-10",lat:35.675606,lng:139.914764,    c:130, t:"私立"},
+  {n:"北国分駅前しゃりっこ保育園", a:"千葉県市川市堀之内3-18-25",lat:35.76228,lng:139.914337, c:39, t:"私立"},
+  {n:"ひまわりキッズ保育園", a:"千葉県市川市行徳駅前2-9-6",lat:35.680504,lng:139.915924,      c:60,  t:"私立"},
+  {n:"Milky Way International Nursery School市川校", a:"千葉県市川市新田5-6-23",lat:35.729591,lng:139.912003, c:36, t:"私立"},
+  {n:"K's garden真間駅前保育園", a:"千葉県市川市真間1-12-4",lat:35.732327,lng:139.910797,     c:40,  t:"私立"},
+  {n:"メリーポピンズ市川ルーム", a:"千葉県市川市平田1-14-23",lat:35.724953,lng:139.921387,    c:60,  t:"私立"},
+  {n:"キャリー保育園本八幡", a:"千葉県市川市東菅野1-18-8",lat:35.729652,lng:139.928635,       c:45,  t:"私立"},
+  {n:"聖和保育園",           a:"千葉県市川市新田5-4-2",lat:35.729149,lng:139.912674,          c:44,  t:"私立"},
+  {n:"そらまめ保育園市川大野", a:"千葉県市川市奉免町116-2",lat:35.741714,lng:139.954987,      c:91,  t:"私立"},
+  {n:"ゆう保育園",           a:"千葉県市川市妙典2-4-12",lat:35.695976,lng:139.926743,         c:41,  t:"私立"},
+  {n:"若葉インターナショナル幼保園行徳園", a:"千葉県市川市行徳駅前1-3-14",lat:35.684807,lng:139.915817, c:60, t:"私立"},
+  {n:"すみれキッズアカデミー", a:"千葉県市川市宝1-10-21",lat:35.683136,lng:139.925186,        c:64,  t:"私立"},
+  {n:"湊新田保育園",         a:"千葉県市川市湊新田2-8-3",lat:35.678902,lng:139.911285,        c:60,  t:"私立"},
+  {n:"妙典保育園",           a:"千葉県市川市妙典6-2-45",lat:35.695461,lng:139.930084,         c:90,  t:"私立"},
+  {n:"みやくぼ保育園",       a:"千葉県市川市宮久保3-17-10",lat:35.735134,lng:139.938965,      c:110, t:"私立"},
+  {n:"さくらキッズ保育園",   a:"千葉県市川市行徳駅前1-8-17",lat:35.683567,lng:139.917648,    c:69,  t:"私立"},
+  {n:"認可保育園トドラースリング", a:"千葉県市川市田尻4-16-7",lat:35.702152,lng:139.937805,   c:40,  t:"私立"},
+  {n:"リトルガーデンインターナショナル市川認可保育園", a:"千葉県市川市市川南4-2-19",lat:35.726223,lng:139.901764, c:81, t:"私立"},
+  {n:"市川かえで保育園",     a:"千葉県市川市菅野5-10-1",lat:35.733303,lng:139.924332,         c:20,  t:"私立"},
+  {n:"原木中山こどもの木保育園", a:"千葉県市川市田尻3-6-36",lat:35.706036,lng:139.935318,     c:63,  t:"私立"},
+  {n:"ちゃいれっく入船保育園", a:"千葉県市川市入船10-3",lat:35.678139,lng:139.921005,         c:60,  t:"私立"},
+  {n:"京進のほいくえんHOPPA新浜", a:"千葉県市川市新浜1-23-13",lat:35.674599,lng:139.914505,  c:30,  t:"私立"},
+  {n:"京進のほいくえんHOPPA南行徳駅前", a:"千葉県市川市新井3-4-1",lat:35.672623,lng:139.899765, c:50, t:"私立"},
+  {n:"らいおんハート行徳駅前保育園", a:"千葉県市川市行徳駅前1-19-19",lat:35.684429,lng:139.915222, c:40, t:"私立"},
+  {n:"ミルキーホーム本八幡みなみ園", a:"千葉県市川市南八幡3-12-21",lat:35.718567,lng:139.927856, c:27, t:"私立"},
+  {n:"八幡南保育園",         a:"千葉県市川市平田3-4-14",lat:35.722004,lng:139.92157,         c:60,  t:"私立"},
+  {n:"いろはな保育園本八幡", a:"千葉県市川市南八幡3-3-6",lat:35.719711,lng:139.929199,        c:20,  t:"私立"},
+  {n:"クオリスキッズ行徳保育園", a:"千葉県市川市湊2-9",lat:35.685314,lng:139.912247,          c:46,  t:"私立"},
+  {n:"K's garden鬼越保育園", a:"千葉県市川市高石神10-1",lat:35.719303,lng:139.940186,         c:70,  t:"私立"},
+  {n:"そらまめ保育園市川駅前", a:"千葉県市川市市川南1-9-29",lat:35.728729,lng:139.906082,     c:150, t:"私立"},
+  {n:"ミルキーホーム東菅野園", a:"千葉県市川市東菅野2-19-2",lat:35.733353,lng:139.928467,     c:60,  t:"私立"},
+  {n:"北国分駅前第二しゃりっこ保育園", a:"千葉県市川市堀之内3-26-31",lat:35.762718,lng:139.912766, c:40, t:"私立"},
+  {n:"京進のほいくえんHOPPA南大野", a:"千葉県市川市南大野2-3-1",lat:35.743698,lng:139.954514, c:50, t:"私立"},
+  {n:"ぽっかぽっかにっけ保育園北方", a:"千葉県市川市北方1-8-2",lat:35.720951,lng:139.936386,  c:68,  t:"私立"},
+  {n:"新田チャイルド保育園", a:"千葉県市川市新田2-15-8",lat:35.725304,lng:139.914474,         c:81,  t:"私立"},
+  {n:"Milky Way International Nursery School市川新田校", a:"千葉県市川市新田5-9-8",lat:35.728085,lng:139.912003, c:69, t:"私立"},
+  {n:"ししの子保育園市川",   a:"千葉県市川市大和田2-22-28",lat:35.712532,lng:139.916153,      c:59,  t:"私立"},
+  {n:"市川妙典雲母保育園",   a:"千葉県市川市妙典4-16-16",lat:35.68882,lng:139.931808,        c:60,  t:"私立"},
+  {n:"京進のほいくえんHOPPA妙典駅", a:"千葉県市川市本塩15-16",lat:35.690788,lng:139.921326,  c:40,  t:"私立"},
+  {n:"ちゃいれっく末広保育園", a:"千葉県市川市末広2-16-11",lat:35.681679,lng:139.920532,      c:60,  t:"私立"},
+  {n:"ぶれあ保育園・南行徳", a:"千葉県市川市南行徳1-19-5",lat:35.671288,lng:139.902679,       c:60,  t:"私立"},
+  {n:"AIAI NURSERY北国分",   a:"千葉県市川市堀之内3-30-12",lat:35.763996,lng:139.911591,      c:30,  t:"私立"},
+  {n:"AIAI NURSERY菅野六丁目", a:"千葉県市川市菅野6-19-13",lat:35.735336,lng:139.914719,      c:60,  t:"私立"},
+  {n:"AIAI NURSERY本八幡",   a:"千葉県市川市八幡3-9-21",lat:35.723015,lng:139.924271,         c:50,  t:"私立"},
+  {n:"市川なないろ保育園",   a:"千葉県市川市新田3-15-5",lat:35.723011,lng:139.912582,         c:59,  t:"私立"},
+  {n:"デイジー保育園・市川市大和田", a:"千葉県市川市大和田4-8-7",lat:35.718998,lng:139.914062, c:60, t:"私立"},
+  {n:"ソラストいちかわ保育園", a:"千葉県市川市大洲1-12-3",lat:35.719604,lng:139.912155,       c:60,  t:"私立"},
+  {n:"ベアキッズ保育園",     a:"千葉県市川市鬼高2-13-16",lat:35.715172,lng:139.938171,        c:60,  t:"私立"},
+  {n:"たかし保育園市川二俣", a:"千葉県市川市二俣2-11-6",lat:35.703842,lng:139.957306,         c:40,  t:"私立"},
+  {n:"Milky Way International Nursery School行徳校", a:"千葉県市川市宝1-4-13",lat:35.682503,lng:139.927338, c:69, t:"私立"},
+  {n:"京進のほいくえんHOPPA末広", a:"千葉県市川市末広1-3-10",lat:35.685127,lng:139.918076,    c:50,  t:"私立"},
+  {n:"クオリスキッズ行徳第2保育園", a:"千葉県市川市行徳駅前2-8-9",lat:35.681065,lng:139.91655, c:36, t:"私立"},
+  {n:"まなびの森保育園行徳", a:"千葉県市川市行徳駅前3-7-9",lat:35.68042,lng:139.91803,      c:60,  t:"私立"},
+  {n:"K's garden行徳保育園", a:"千葉県市川市福栄1-15-16",lat:35.675407,lng:139.908188,        c:70,  t:"私立"},
+  {n:"みなみぎょうとくゆずのき保育園", a:"千葉県市川市相之川3-1-9",lat:35.677364,lng:139.90004, c:90, t:"私立"},
+  {n:"スクルドエンジェル保育園南行徳園", a:"千葉県市川市新井3-17-13",lat:35.672722,lng:139.895477, c:70, t:"私立"},
+  {n:"AIAI NURSERY菅野駅前", a:"千葉県市川市平田2-11-16",lat:35.727684,lng:139.919678,        c:60,  t:"私立"},
+  {n:"市川梨の花保育園",     a:"千葉県市川市北方町4-2215-1",lat:35.735653,lng:139.956314,     c:90,  t:"私立"},
+  {n:"Milky Way International Nursery School市川南校", a:"千葉県市川市市川南3-5-13",lat:35.72813,lng:139.9021, c:90, t:"私立"},
+  {n:"スクルドエンジェル保育園市川新田園", a:"千葉県市川市新田1-24-17",lat:35.726871,lng:139.91478, c:70, t:"私立"},
+  {n:"AIAI NURSERY妙典一丁目", a:"千葉県市川市妙典1-8-19",lat:35.69701,lng:139.923767,       c:60,  t:"私立"},
+  {n:"市川富浜雲母保育園",   a:"千葉県市川市富浜2-3-18",lat:35.689056,lng:139.921341,         c:60,  t:"私立"},
+  {n:"ポピンズナーサリースクール妙典", a:"千葉県市川市妙典4-4-27",lat:35.691811,lng:139.926605, c:90, t:"私立"},
+  {n:"アルタキッズ妙典園",   a:"千葉県市川市富浜2-7-2",lat:35.690346,lng:139.924835,          c:50,  t:"私立"},
+  {n:"かえで保育園妙典",     a:"千葉県市川市塩焼1-14-8",lat:35.687668,lng:139.929092,         c:60,  t:"私立"},
+  {n:"AIAI NURSERY妙典五丁目", a:"千葉県市川市妙典5-9-11",lat:35.691292,lng:139.931686,       c:60,  t:"私立"},
+  {n:"AIAI NURSERY妙典六丁目", a:"千葉県市川市妙典6-5-23",lat:35.693119,lng:139.930313,       c:60,  t:"私立"},
+  {n:"市川南保育園",         a:"千葉県市川市市川南4-1-15",lat:35.726788,lng:139.902588,        c:60,  t:"私立"},
+  {n:"八幡チャイルド保育園", a:"千葉県市川市八幡3-10-20",lat:35.723305,lng:139.923706,        c:72,  t:"私立"},
+  {n:"まなびの森保育園市川", a:"千葉県市川市大洲4-18-4",lat:35.722996,lng:139.906937,         c:60,  t:"私立"},
+  {n:"まなびの森保育園妙典", a:"千葉県市川市妙典6-1-13",lat:35.694813,lng:139.929504,         c:60,  t:"私立"},
+  {n:"スクルドエンジェル保育園本八幡園", a:"千葉県市川市南八幡3-14-17",lat:35.717934,lng:139.926224, c:39, t:"私立"},
+  {n:"Nest本八幡保育園",     a:"千葉県市川市南八幡5-11-11",lat:35.720222,lng:139.924286,      c:70,  t:"私立"},
+  {n:"まなびの森保育園本八幡", a:"千葉県市川市南八幡1-3-1",lat:35.718376,lng:139.931335,      c:80,  t:"私立"},
+  {n:"きららの杜保育園原木中山", a:"千葉県市川市高谷1-10-4",lat:35.701096,lng:139.94043,     c:60,  t:"私立"},
+  {n:"かえで保育園原木中山", a:"千葉県市川市原木2-13-25",lat:35.698051,lng:139.942245,        c:70,  t:"私立"},
+  {n:"きららの杜保育園南行徳", a:"千葉県市川市相之川4-10-4",lat:35.674667,lng:139.900909,     c:70,  t:"私立"},
+  {n:"memorytree市川保育園", a:"千葉県市川市大野町3-1507-1",lat:35.759899,lng:139.948547,      c:60,  t:"私立"},
+  {n:"ヴィラまなびの森保育園本八幡", a:"千葉県市川市南八幡1-19-18",lat:35.715675,lng:139.928879, c:60, t:"私立"},
+  {n:"かえで保育園本八幡",   a:"千葉県市川市八幡3-29-16",lat:35.726643,lng:139.929352,        c:60,  t:"私立"},
+  {n:"市川本八幡雲母保育園", a:"千葉県市川市南八幡3-12-9",lat:35.718079,lng:139.928879,       c:60,  t:"私立"},
+  {n:"セレン保育園",         a:"千葉県市川市本行徳1266-2",lat:35.686062,lng:139.934982,        c:90,  t:"私立"},
+  {n:"南八幡さくら保育園",   a:"千葉県市川市南八幡3-9-1",lat:35.71936,lng:139.929153,        c:129, t:"私立"},
+  {n:"ミラッツ市川宮久保保育園", a:"千葉県市川市宮久保1-10-9",lat:35.735836,lng:139.931854,   c:60,  t:"私立"},
+  {n:"市川原木中山雲母保育園", a:"千葉県市川市高谷2-5-5",lat:35.700077,lng:139.939209,        c:40,  t:"私立"},
+  {n:"ル・アンジェ南行徳保育園", a:"千葉県市川市新井3-5-1",lat:35.671841,lng:139.900482,      c:50,  t:"私立"},
+  {n:"AIAI NURSERY中国分",   a:"千葉県市川市中国分3-3-1",lat:35.7514,lng:139.909882,        c:60,  t:"私立"},
+  {n:"市川南大野雲母保育園", a:"千葉県市川市南大野1-22-11",lat:35.743542,lng:139.947678,      c:60,  t:"私立"},
+  {n:"ル・アンジェ市川保育園", a:"千葉県市川市市川2-10-5",lat:35.731243,lng:139.903061,       c:100, t:"私立"},
+  {n:"やまと北方保育園",     a:"千葉県市川市北方1-12-3",lat:35.722256,lng:139.938049,         c:100, t:"私立"},
+  {n:"おおわだ保育園",       a:"千葉県市川市東大和田2-6-2",lat:35.715717,lng:139.923187,      c:130, t:"私立"},
+  {n:"みさと保育園",         a:"千葉県市川市柏井町1-1100-1",lat:35.741814,lng:139.969009,     c:48,  t:"私立"},
+  {n:"すくすく大洲保育園",   a:"千葉県市川市大洲1-2-28",lat:35.716297,lng:139.913422,         c:101, t:"私立"},
+  {n:"中国分保育園",         a:"千葉県市川市中国分2-13-1",lat:35.748707,lng:139.912323,       c:120, t:"私立"},
+  // 認定こども園
+  {n:"e-こども園",           a:"千葉県市川市南八幡4-14-4",lat:35.718342,lng:139.925461,       c:99,  t:"認定こども園"},
+  {n:"認定こども園風の谷こども園", a:"千葉県市川市北国分4-10-3",lat:35.763115,lng:139.907867, c:66,  t:"認定こども園"},
+  {n:"宮久保幼稚園",         a:"千葉県市川市宮久保6-7-2",lat:35.737778,lng:139.939987,        c:180, t:"認定こども園"},
+  {n:"いずみ認定こども園",   a:"千葉県市川市南行徳2-5-1",lat:35.670677,lng:139.906525,        c:180, t:"認定こども園"},
+  {n:"地方裁量型認定こども園延命寺学園", a:"千葉県市川市新井1-9-2",lat:35.675407,lng:139.893219, c:65, t:"認定こども園"},
+  {n:"幼保連携型認定こども園鬼高幼稚園", a:"千葉県市川市鬼高3-14-18",lat:35.710556,lng:139.936798, c:219, t:"認定こども園"},
+  {n:"認定こども園COCOWA学園", a:"千葉県市川市幸2-12-23",lat:35.678471,lng:139.925171,        c:150, t:"認定こども園"},
+  {n:"認定こども園アイリス幼稚園", a:"千葉県市川市北方2-29-9",lat:35.725811,lng:139.941132,   c:174, t:"認定こども園"},
+  {n:"白菊幼稚園",           a:"千葉県市川市南八幡3-15-1",lat:35.718067,lng:139.92746,       c:120, t:"認定こども園"},
+  {n:"幼保連携型認定こども園須和田幼稚園", a:"千葉県市川市須和田1-20-3",lat:35.73716,lng:139.918213, c:169, t:"認定こども園"},
+  {n:"市川学園幼稚園",       a:"千葉県市川市八幡5-1-10",lat:35.72327,lng:139.931747,         c:180, t:"認定こども園"},
+  {n:"市川学園第2幼稚園",    a:"千葉県市川市東菅野4-13-1",lat:35.731842,lng:139.93782,       c:100, t:"認定こども園"},
+  {n:"幼稚園型認定こども園いなほ幼稚園", a:"千葉県市川市国分3-4-12",lat:35.743069,lng:139.912155, c:105, t:"認定こども園"},
+  {n:"市川聖マリヤ幼稚園",   a:"千葉県市川市八幡3-19-12",lat:35.724346,lng:139.926208,       c:60,  t:"認定こども園"},
+  // 小規模保育
+  {n:"原木スマイルナーサリー", a:"千葉県市川市原木1-8-1",lat:35.703583,lng:139.943192,        c:19,  t:"小規模"},
+  {n:"宮久保幼稚園012",      a:"千葉県市川市宮久保6-7-2",lat:35.737778,lng:139.939987,        c:19,  t:"小規模"},
+  {n:"ひなた保育園行徳駅前ルーム", a:"千葉県市川市行徳駅前2-23-14",lat:35.681992,lng:139.912323, c:19, t:"小規模"},
+  {n:"いろはな保育園市川南", a:"千葉県市川市市川南1-9-30",lat:35.728676,lng:139.906204,        c:19,  t:"小規模"},
+  {n:"クオリスキッズ平田保育園", a:"千葉県市川市平田2-5-4",lat:35.725464,lng:139.920578,      c:19,  t:"小規模"},
+  {n:"ミルキーホーム本八幡きた園", a:"千葉県市川市八幡2-6-18",lat:35.722202,lng:139.928284,   c:19,  t:"小規模"},
+  {n:"南行徳えがお保育園",   a:"千葉県市川市南行徳1-19-22",lat:35.671589,lng:139.901978,      c:19,  t:"小規模"},
+  {n:"Little K's真間駅前保育園", a:"千葉県市川市市川1-26-11",lat:35.732079,lng:139.910568,    c:12,  t:"小規模"},
+  {n:"小規模保育所リトルすわだ", a:"千葉県市川市須和田1-22-4",lat:35.737415,lng:139.918289,   c:19,  t:"小規模"},
+  {n:"保育ルームキューティー市川", a:"千葉県市川市南八幡4-6-14",lat:35.719906,lng:139.925766, c:16,  t:"小規模"},
+  {n:"いろはな保育園本八幡東", a:"千葉県市川市南八幡3-1-6",lat:35.719345,lng:139.930374,      c:18,  t:"小規模"},
+  {n:"にじのき保育園",       a:"千葉県市川市行徳駅前1-24-1",lat:35.68338,lng:139.915054,     c:17,  t:"小規模"},
+  {n:"ル・アンジェ行徳保育園", a:"千葉県市川市入船12-21",lat:35.678928,lng:139.919922,        c:19,  t:"小規模"},
+  {n:"ねっこ保育園",         a:"千葉県市川市相之川4-10-8",lat:35.674213,lng:139.901321,       c:15,  t:"小規模"},
+  {n:"保育園エンゼルハウス市川大野園", a:"千葉県市川市大野町2-216",lat:35.753738,lng:139.952103, c:16, t:"小規模"},
+  {n:"いろはな保育園本八幡北", a:"千葉県市川市八幡2-8-10",lat:35.72123,lng:139.929535,       c:19,  t:"小規模"},
+  {n:"ぽんておうちえん",     a:"千葉県市川市国府台6-1-22",lat:35.75695,lng:139.901321,       c:19,  t:"小規模"},
+  {n:"市川みんと保育園",     a:"千葉県市川市市川1-5-12",lat:35.729694,lng:139.90889,         c:19,  t:"小規模"},
+  {n:"そらいろおうちえん",   a:"千葉県市川市市川1-12-23",lat:35.731049,lng:139.908157,        c:15,  t:"小規模"},
+  {n:"トライキッズ保育園",   a:"千葉県市川市真間2-13-8",lat:35.734497,lng:139.908813,         c:19,  t:"小規模"},
+  {n:"Little K'sアクス本八幡保育園", a:"千葉県市川市八幡3-4-1",lat:35.723576,lng:139.926865, c:19,  t:"小規模"},
+  {n:"こえだ保育園",         a:"千葉県市川市八幡2-1-14",lat:35.722057,lng:139.930389,         c:15,  t:"小規模"},
+  {n:"ル・アンジェ本八幡保育園", a:"千葉県市川市八幡2-7-13",lat:35.721985,lng:139.928345,     c:15,  t:"小規模"},
+  {n:"森のこどもえん",       a:"千葉県市川市北方2-37-4",lat:35.727211,lng:139.938553,         c:19,  t:"小規模"},
+  {n:"はっぴー市川園",       a:"千葉県市川市中山4-7-13",lat:35.717335,lng:139.945831,         c:19,  t:"小規模"},
+  {n:"きらら保育園市川南",   a:"千葉県市川市市川南1-1-1",lat:35.728058,lng:139.909561,        c:19,  t:"小規模"},
+  {n:"妙典えがお保育園",     a:"千葉県市川市妙典5-16-25",lat:35.690384,lng:139.931641,        c:19,  t:"小規模"},
+  {n:"保育&スクールWhizz Kids市川駅前園", a:"千葉県市川市市川南1-8-29",lat:35.728451,lng:139.906754, c:19, t:"小規模"},
+  {n:"小規模保育園hikari",   a:"千葉県市川市大野町3-1811-13",lat:35.75399,lng:139.956268,    c:19,  t:"小規模"},
+  {n:"wakatakeわんぱくgarden", a:"千葉県市川市北方町4-1800-31",lat:35.72998,lng:139.95726,  c:19,  t:"小規模"},
+  {n:"みどりキッズガーデン", a:"千葉県市川市中山3-10-4",lat:35.719875,lng:139.948944,         c:19,  t:"小規模"},
+  {n:"童夢ガーデン本八幡",   a:"千葉県市川市東菅野3-18-10",lat:35.73241,lng:139.931168,      c:15,  t:"小規模"},
+  {n:"ぽっかぽっかにっけなーさりー", a:"千葉県市川市北方1-3-7",lat:35.722195,lng:139.937225,  c:18,  t:"小規模"},
+  {n:"&KIDSいろのはほいくえん", a:"千葉県市川市市川1-13-32",lat:35.731327,lng:139.908249,     c:19,  t:"小規模"},
+  {n:"小規模保育園ミニミー", a:"千葉県市川市原木2-1-1",lat:35.701813,lng:139.942642,          c:19,  t:"小規模"},
+  {n:"すくすく行徳ほいくえん", a:"千葉県市川市行徳駅前1-7-9",lat:35.68325,lng:139.916977,   c:16,  t:"小規模"},
+  {n:"incipit保育園",        a:"千葉県市川市南行徳1-12-7",lat:35.672016,lng:139.905289,       c:19,  t:"小規模"},
+  {n:"ゆずのき保育いちかわぎょうとく園", a:"千葉県市川市南行徳1-20-13",lat:35.672054,lng:139.901825, c:19, t:"小規模"},
+  {n:"しゃりっこキッズ保育園", a:"千葉県市川市堀之内3-18-25",lat:35.76228,lng:139.914337,   c:16,  t:"小規模"},
+  {n:"育脳保育園みらいっぽ市川南", a:"千葉県市川市市川南3-3-10",lat:35.728565,lng:139.903809, c:19, t:"小規模"},
+  {n:"市川さんさん保育園",   a:"千葉県市川市新田2-31-25",lat:35.726326,lng:139.91185,        c:16,  t:"小規模"},
+  {n:"Kids Resort MOTOYAWATA", a:"千葉県市川市南八幡4-4-17",lat:35.720402,lng:139.924911,     c:19,  t:"小規模"},
+  {n:"本八幡はっぴー保育園", a:"千葉県市川市南八幡3-7-1",lat:35.719833,lng:139.928009,        c:19,  t:"小規模"},
+  {n:"サンライズキッズ保育園市川園", a:"千葉県市川市南八幡3-7-19",lat:35.719532,lng:139.927719, c:19, t:"小規模"},
+  {n:"保育ルームキューティーアイ", a:"千葉県市川市南八幡3-14-17",lat:35.717934,lng:139.926224, c:19, t:"小規模"},
+  {n:"南行徳せいわ保育園",   a:"千葉県市川市南行徳1-6-12",lat:35.672623,lng:139.906052,       c:15,  t:"小規模"},
+  {n:"みらいそや保育園",     a:"千葉県市川市曽谷5-5-3",lat:35.745407,lng:139.928162,          c:18,  t:"小規模"},
+  {n:"市川南はっぴー保育園", a:"千葉県市川市市川南1-2-7",lat:35.726799,lng:139.908508,        c:16,  t:"小規模"},
+  {n:"MIRATZ市川保育園",     a:"千葉県市川市市川1-4-17",lat:35.729263,lng:139.909058,         c:19,  t:"小規模"},
+  {n:"ムースナーサリー",     a:"千葉県市川市市川3-27-16",lat:35.737919,lng:139.903046,        c:15,  t:"小規模"},
+  {n:"南行徳トライキッズ",   a:"千葉県市川市相之川4-13-18",lat:35.673519,lng:139.899338,      c:19,  t:"小規模"},
+  {n:"南行徳サンフラワー保育園", a:"千葉県市川市南行徳1-21-6",lat:35.671333,lng:139.901443,   c:19,  t:"小規模"},
+  {n:"ル・アンジェ南行徳小規模保育園", a:"千葉県市川市新井3-5-1",lat:35.671841,lng:139.900482, c:19, t:"小規模"},
+  {n:"Blooming kids保育園",  a:"千葉県市川市行徳駅前3-1-16",lat:35.682339,lng:139.918411,     c:19,  t:"小規模"},
+  {n:"市川学園キッズフォレスト", a:"千葉県市川市東菅野4-1-1",lat:35.731113,lng:139.937958,    c:19,  t:"小規模"},
+  // 事業所内保育
+  {n:"つくしんぼ保育所",     a:"千葉県市川市国府台1-7-1",lat:35.746128,lng:139.906555,        c:50,  t:"事業所内"},
+];
+
+const TYPE_COLOR = {
+  "公立":       "#3388ff",
+  "私立":       "#2da44e",
+  "認定こども園":"#f08030",
+  "小規模":     "#e67e22",
+  "事業所内":   "#9b59b6",
+};
+const TYPE_BG = {
+  "公立":       "#e8f0fe",
+  "私立":       "#e6f4ea",
+  "認定こども園":"#fff3e0",
+  "小規模":     "#fef3e2",
+  "事業所内":   "#f5eef8",
+};
+const TYPE_ORDER = ["公立","私立","認定こども園","小規模","事業所内"];
+
+const CACHE_KEY = 'ichikawa_geocache_v2';
+const MAX_CAP = 220;
+
+const map = L.map('map').setView([35.72, 139.93], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+let pinLayer = L.layerGroup().addTo(map);
+let heatLayer = null;
+let pinsVisible = true;
+let heatVisible = false;
+
+// marker registry: [{marker, facility}]
+const markerList = [];
+const activeTypes = new Set(TYPE_ORDER);
+let searchQuery = '';
+
+function popupHTML(f) {
+  const color = TYPE_COLOR[f.t] || '#888';
+  const bg    = TYPE_BG[f.t]    || '#eee';
+  const addr  = f.a.replace('千葉県市川市','市川市 ');
+  const pct   = Math.round(f.c / MAX_CAP * 100);
+  return `
+    <div class="pp-name">${f.n}</div>
+    <span class="pp-badge" style="background:${bg};color:${color};">${f.t}</span>
+    <div class="pp-addr">📍 ${addr}</div>
+    <div class="pp-cap-label">定員</div>
+    <span class="pp-cap-num">${f.c}</span><span class="pp-cap-unit">名</span>
+    <div class="pp-bar-wrap">
+      <div class="pp-bar" style="width:${pct}%;background:${color};"></div>
+    </div>
+  `;
+}
+
+async function geocodeAddress(addr) {
+  const url = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(addr)}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const [lng, lat] = data[0].geometry.coordinates;
+      return { lat, lng };
+    }
+  } catch(e) {}
+  return null;
+}
+
+function capRadius(c) {
+  return Math.max(5, Math.min(22, 5 + (c / MAX_CAP) * 17));
+}
+
+const coordCount = {};
+function jitter(lat, lng) {
+  const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  const n = coordCount[key] || 0;
+  coordCount[key] = n + 1;
+  if (n === 0) return { lat, lng };
+  const angle = n * 137.508 * Math.PI / 180;
+  const r = 0.00012 * Math.ceil(n / 8);
+  return { lat: lat + r * Math.sin(angle), lng: lng + r * Math.cos(angle) };
+}
+
+function applyFilters() {
+  let shown = 0;
+  markerList.forEach(({ marker, facility }) => {
+    const matchType = activeTypes.has(facility.t);
+    const matchSearch = !searchQuery || facility.n.includes(searchQuery);
+    if (matchType && matchSearch) {
+      if (!pinLayer.hasLayer(marker)) pinLayer.addLayer(marker);
+      shown++;
+    } else {
+      if (pinLayer.hasLayer(marker)) pinLayer.removeLayer(marker);
+    }
+  });
+  document.getElementById('count-num').textContent = shown;
+}
+
+async function init() {
+  const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+  const total = FACILITIES.length;
+  const heatData = [];
+  let totalCap = 0;
+  const typeCounts = {}, typeCaps = {};
+  TYPE_ORDER.forEach(t => { typeCounts[t] = 0; typeCaps[t] = 0; });
+
+  // 全施設に lat/lng が事前埋め込みされていればローディング画面を即座に消す
+  const allHaveLatLng = FACILITIES.every(f => f.lat && f.lng);
+  if (allHaveLatLng) {
+    document.getElementById('loading').style.display = 'none';
+  } else {
+    document.getElementById('progress-text').textContent = `0 / ${total} 件処理中...`;
+  }
+
+  for (let i = 0; i < FACILITIES.length; i++) {
+    const f = FACILITIES[i];
+    let ll = f.lat && f.lng ? { lat: f.lat, lng: f.lng } : cache[f.a] || null;
+    if (!ll) {
+      ll = await geocodeAddress(f.a);
+      if (ll) cache[f.a] = ll;
+      await new Promise(r => setTimeout(r, 80));
+    }
+
+    if (!allHaveLatLng) {
+      const pct = Math.round((i + 1) / total * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-text').textContent = `${i + 1} / ${total} 件処理中...`;
+    }
+
+    if (!ll) continue;
+
+    const j = jitter(ll.lat, ll.lng);
+    const color = TYPE_COLOR[f.t] || '#888';
+    const marker = L.circleMarker([j.lat, j.lng], {
+      radius: capRadius(f.c), color: '#fff', weight: 1.5,
+      fillColor: color, fillOpacity: 0.88
+    }).bindPopup(popupHTML(f), { maxWidth: 240 });
+
+    markerList.push({ marker, facility: f });
+    marker.addTo(pinLayer);
+
+    heatData.push([ll.lat, ll.lng, f.c / MAX_CAP]);
+    totalCap += f.c;
+    typeCounts[f.t] = (typeCounts[f.t] || 0) + 1;
+    typeCaps[f.t]   = (typeCaps[f.t]   || 0) + f.c;
+  }
+
+  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  heatLayer = L.heatLayer(heatData, { radius: 25, blur: 18, maxZoom: 16 });
+  document.getElementById('loading').style.display = 'none';
+
+  // Stats panel
+  const rows = TYPE_ORDER.map(t => `
+    <div class="st-row">
+      <div class="st-dot" style="background:${TYPE_COLOR[t]};"></div>
+      <span class="st-name">${t}</span>
+      <span class="st-n">${typeCounts[t]}園</span>
+      <span class="st-cap">定員 ${(typeCaps[t]||0).toLocaleString()}</span>
+    </div>
+  `).join('');
+  document.getElementById('stats-rows').innerHTML = rows;
+  document.getElementById('stats-total-num').textContent = totalCap.toLocaleString();
+
+  // update count badge
+  document.getElementById('count-num').textContent = markerList.length;
+}
+
+// ── Filter pills ──
+document.querySelectorAll('.filter-pill').forEach(pill => {
+  const origBg = pill.style.background;
+  const origBorder = pill.style.borderColor;
+  pill.dataset.origBg = origBg;
+  pill.dataset.origBorder = origBorder;
+
+  pill.addEventListener('click', () => {
+    const t = pill.dataset.type;
+    if (activeTypes.has(t)) {
+      activeTypes.delete(t);
+      pill.classList.add('off');
+      pill.classList.remove('on');
+    } else {
+      activeTypes.add(t);
+      pill.classList.remove('off');
+      pill.classList.add('on');
+      pill.style.background = pill.dataset.origBg;
+      pill.style.borderColor = pill.dataset.origBorder;
+    }
+    applyFilters();
+  });
+});
+
+// ── Search ──
+const searchInput = document.getElementById('search-input');
+const searchClear = document.getElementById('search-clear');
+searchInput.addEventListener('input', () => {
+  searchQuery = searchInput.value.trim();
+  searchClear.style.display = searchQuery ? 'block' : 'none';
+  applyFilters();
+});
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  searchQuery = '';
+  searchClear.style.display = 'none';
+  applyFilters();
+});
+
+// ── Toggle switches ──
+function toggleLayer(type) {
+  if (type === 'pins') {
+    pinsVisible = !pinsVisible;
+    document.getElementById('sw-pins').classList.toggle('on', pinsVisible);
+    if (pinsVisible) pinLayer.addTo(map); else map.removeLayer(pinLayer);
+  } else {
+    heatVisible = !heatVisible;
+    document.getElementById('sw-heat').classList.toggle('on', heatVisible);
+    if (heatLayer) {
+      if (heatVisible) heatLayer.addTo(map); else map.removeLayer(heatLayer);
+    }
+  }
+}
+document.getElementById('row-pins').addEventListener('click', () => toggleLayer('pins'));
+document.getElementById('row-heat').addEventListener('click', () => toggleLayer('heat'));
+
+init();
+</script>
+</body>
+</html>
