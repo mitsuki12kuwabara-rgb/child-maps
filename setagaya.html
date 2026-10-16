@@ -349,6 +349,30 @@
       /* Leafletズームボタンを下部シートの上に避ける */
       .leaflet-top.leaflet-left { top: 64px; }
       .leaflet-bottom.leaflet-right { bottom: 60px; }
+
+      /* 1km検索中は左上の #radius-panel を非表示（地図を遮らない） */
+      body.radius-open #radius-panel { display: none !important; }
+      /* 1km検索中は mobile-topbar も非表示（下部シートに集約） */
+      body.radius-open #mobile-topbar { display: none; }
+
+      /* 下部シート内の1km結果表示用スタイル */
+      .ms-radius-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #eee;
+      }
+      .ms-radius-title { font-weight: bold; color: #e74c3c; font-size: 13px; }
+      .ms-radius-close {
+        cursor: pointer; color: #e74c3c; font-size: 12px; font-weight: bold;
+        padding: 4px 10px; border: 1px solid #e74c3c; border-radius: 14px;
+        background: #fff5f3;
+      }
+      .ms-radius-close:active { background: #e74c3c; color: white; }
+      #ms-radius-info {
+        padding: 10px; background: #fafafa; border-radius: 6px;
+        font-size: 11px; color: #555; margin-bottom: 10px; line-height: 1.6;
+      }
+      #ms-radius-info strong { color: #333; }
+      #ms-radius-info .rc-hi { color: #e74c3c; font-weight: bold; }
     }
   </style>
 </head>
@@ -386,23 +410,35 @@
     <span class="ms-hint">↑ 引き上げ ・ ↓ 下げて閉じる</span>
   </div>
   <div class="ms-body">
-    <div id="stats-mobile"><strong>読み込み完了後に表示されます</strong></div>
-    <div class="ms-section">
-      <h4>施設種別の凡例</h4>
-      <div class="legend-item"><div class="legend-dot" style="background:#3388ff"></div>区立保育園</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#2da44e"></div>私立保育園</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#f08030"></div>認定こども園</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>幼稚園</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>小規模・地域型</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#888888"></div>その他</div>
-    </div>
-    <div class="ms-section">
-      <h4>使い方</h4>
-      <div style="font-size:11px;color:#666;line-height:1.7;">
-        ・上部の検索バーをタップ → 名前検索・絞り込み<br>
-        ・地図をタップ → 1km圏内の保育園を表示<br>
-        ・ピンをタップ → 施設詳細を表示
+    <!-- デフォルト表示（1km検索未使用時） -->
+    <div class="ms-default">
+      <div id="stats-mobile"><strong>読み込み完了後に表示されます</strong></div>
+      <div class="ms-section">
+        <h4>施設種別の凡例</h4>
+        <div class="legend-item"><div class="legend-dot" style="background:#3388ff"></div>区立保育園</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#2da44e"></div>私立保育園</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f08030"></div>認定こども園</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>幼稚園</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>小規模・地域型</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#888888"></div>その他</div>
       </div>
+      <div class="ms-section">
+        <h4>使い方</h4>
+        <div style="font-size:11px;color:#666;line-height:1.7;">
+          ・上部の検索バーをタップ → 名前検索・絞り込み<br>
+          ・地図をタップ → 1km圏内の保育園を表示<br>
+          ・ピンをタップ → 施設詳細を表示
+        </div>
+      </div>
+    </div>
+    <!-- 1km検索結果表示（モバイル） -->
+    <div class="ms-radius" style="display:none;">
+      <div class="ms-radius-header">
+        <span class="ms-radius-title">📍 半径 1km 圏内の施設</span>
+        <span class="ms-radius-close" title="検索を閉じる">✕ 閉じる</span>
+      </div>
+      <div id="ms-radius-info"></div>
+      <div id="ms-radius-list"></div>
     </div>
   </div>
 </div>
@@ -1277,17 +1313,21 @@ async function init() {
 
 // クリックハンドラは init 完了を待たずに即登録
 map.on('click', function(e) {
-  // モバイル：シート/検索パネルが開いていれば閉じるだけ
   if (window.matchMedia('(max-width: 820px)').matches) {
     const sheet = document.getElementById('mobile-sheet');
     const controls = document.getElementById('controls');
-    const anyOpen = (sheet && sheet.classList.contains('m-open')) ||
-                    (controls && controls.classList.contains('m-open'));
-    if (anyOpen) {
-      if (sheet) sheet.classList.remove('m-open');
-      if (controls) controls.classList.remove('m-open');
+    const inRadius = document.body.classList.contains('radius-open');
+    // 検索パネル（上から降下）が開いていれば閉じるだけ
+    if (controls && controls.classList.contains('m-open')) {
+      controls.classList.remove('m-open');
       return;
     }
+    // 1km検索未使用時にシートが開いていれば閉じるだけ
+    if (!inRadius && sheet && sheet.classList.contains('m-open')) {
+      sheet.classList.remove('m-open');
+      return;
+    }
+    // それ以外（radius-open中の再タップ含む）は新しい1km検索を実行
   }
   showRadiusSearch(e.latlng.lat, e.latlng.lng);
 });
@@ -1348,14 +1388,29 @@ function showRadiusSearch(lat, lng) {
   if (rpRad) rpRad.style.display = 'flex';
   document.body.classList.add('radius-open');
 
-  document.getElementById('radius-info').innerHTML =
+  // モバイル: 下部シートに結果を集約（地図は遮らない）
+  const msDefault = document.querySelector('.ms-default');
+  const msRadius = document.querySelector('.ms-radius');
+  if (msDefault) msDefault.style.display = 'none';
+  if (msRadius) msRadius.style.display = 'block';
+  if (window.matchMedia('(max-width: 820px)').matches) {
+    document.getElementById('mobile-sheet').classList.add('m-open');
+  }
+
+  const infoHtml =
     `📍 <span class="rc-hi">${lat.toFixed(4)}, ${lng.toFixed(4)}</span><br>` +
     `圏内施設: <strong>${hits.length}件</strong> / 総定員: <strong>${totalCap.toLocaleString()}名</strong><br>` +
     `<span style="color:#888;font-size:10px;">${typeStr || '(該当なし)'}</span>`;
+  document.getElementById('radius-info').innerHTML = infoHtml;
+  const msInfoEl = document.getElementById('ms-radius-info');
+  if (msInfoEl) msInfoEl.innerHTML = infoHtml;
 
   const listEl = document.getElementById('radius-list');
+  const msListEl = document.getElementById('ms-radius-list');
   if (hits.length === 0) {
-    listEl.innerHTML = '<div style="padding:20px 14px;color:#999;text-align:center;">この範囲に登録済み施設はありません</div>';
+    const empty = '<div style="padding:20px 14px;color:#999;text-align:center;">この範囲に登録済み施設はありません</div>';
+    listEl.innerHTML = empty;
+    if (msListEl) msListEl.innerHTML = empty;
     return;
   }
 
@@ -1386,14 +1441,21 @@ function showRadiusSearch(lat, lng) {
     `;
   }).join('');
 
+  // モバイル側リストにも同じHTMLをコピー
+  if (msListEl) msListEl.innerHTML = listEl.innerHTML;
+
   // クリックで該当ピンにジャンプ＋ポップアップ表示
-  listEl.querySelectorAll('.rc-item').forEach(el => {
-    el.addEventListener('click', function() {
-      const h = hits[parseInt(this.dataset.idx, 10)];
-      map.setView([h.lat, h.lng], Math.max(map.getZoom(), 15));
-      h.marker.openPopup();
-    });
-  });
+  const handleItemClick = function() {
+    const h = hits[parseInt(this.dataset.idx, 10)];
+    map.setView([h.lat, h.lng], Math.max(map.getZoom(), 15));
+    h.marker.openPopup();
+    // モバイル: タップ後は地図を見られるようシートを縮める
+    if (window.matchMedia('(max-width: 820px)').matches) {
+      document.getElementById('mobile-sheet').classList.remove('m-open');
+    }
+  };
+  listEl.querySelectorAll('.rc-item').forEach(el => el.addEventListener('click', handleItemClick));
+  if (msListEl) msListEl.querySelectorAll('.rc-item').forEach(el => el.addEventListener('click', handleItemClick));
 }
 
 function clearRadiusSearch() {
@@ -1408,8 +1470,15 @@ function clearRadiusSearch() {
   const rpRad = document.getElementById('rp-radius');
   if (rpDef) rpDef.style.display = 'flex';
   if (rpRad) rpRad.style.display = 'none';
+  // モバイル: 下部シートの表示もデフォルトに戻す
+  const msDefault = document.querySelector('.ms-default');
+  const msRadius = document.querySelector('.ms-radius');
+  if (msDefault) msDefault.style.display = '';
+  if (msRadius) msRadius.style.display = 'none';
   if (window.matchMedia('(max-width: 820px)').matches) {
     document.getElementById('radius-panel').style.display = 'none';
+    // 下部シートは縮める（引き上げ待ち状態に）
+    document.getElementById('mobile-sheet').classList.remove('m-open');
   }
   document.body.classList.remove('radius-open');
 }
@@ -1646,6 +1715,10 @@ function setupMobileSheet() {
     controls.classList.remove('m-open');
     document.activeElement && document.activeElement.blur();
   });
+
+  // モバイル下部シート内の1km検索「閉じる」ボタン
+  const msClose = document.querySelector('.ms-radius-close');
+  if (msClose) msClose.addEventListener('click', clearRadiusSearch);
 
   // --- 下部シートのドラッグ処理 ---
   let startY = 0, cur = 0, active = false, pid = null;
